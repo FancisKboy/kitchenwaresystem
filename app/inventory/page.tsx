@@ -1,11 +1,109 @@
+
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-
 import { supabase } from '@/lib/supabase';
 import Modal from '@/components/modal';
+import { useAppPreferences } from '@/app/providers';
 
 const PRODUCT_IMAGE_BUCKET = 'product-images';
+
+const INVENTORY_KINYARWANDA: Record<string, string> = {
+  'Stock Control': 'Igenzura ry’ububiko',
+  Inventory: 'Ububiko',
+  'Monitor your kitchenware stock, product types, batches and current inventory value.':
+    'Kurikirana ububiko bw’ibikoresho byo mu gikoni, ubwoko bwabyo, amatsinda n’agaciro k’ibiri mu bubiko.',
+  'Refreshing...': 'Birimo kuvugururwa...',
+  'Refresh Inventory': 'Vugurura ububiko',
+  'Inventory could not load completely.': 'Ntibyashobotse gufungura amakuru yose y’ububiko.',
+  'Try Again': 'Ongera ugerageze',
+  Overview: 'Incamake',
+  'Stock at a Glance': 'Incamake y’ububiko',
+  'Product Types': 'Ubwoko bw’ibicuruzwa',
+  'Active types / kinds': 'Ubwoko bukora',
+  'Units in Stock': 'Ibice biri mu bubiko',
+  'Across all active batches': 'Mu matsinda yose akora',
+  'Stock Value': 'Agaciro k’ububiko',
+  'Current inventory cost value': 'Agaciro k’ibiciro by’ububiko buhari',
+  of: 'muri',
+  'types shown': 'ubwoko bwerekanwe',
+  'Failed to load inventory.': 'Kunanirwa gufungura ububiko.',
+  'Stock Attention': 'Ibyitabwaho mu bubiko',
+  Available: 'Birahari',
+  'Low Stock': 'Ububiko buri hasi',
+  'Out of Stock': 'Byashize mu bubiko',
+  'In Stock': 'Biri mu bubiko',
+  'Find Stock': 'Shakisha mu bubiko',
+  'Search & Filters': 'Gushakisha no kuyungurura',
+  Search: 'Shakisha',
+  'Product, type, or batch...': 'Igicuruzwa, ubwoko cyangwa itsinda...',
+  Product: 'Igicuruzwa',
+  'All Products': 'Ibicuruzwa byose',
+  'Stock Status': 'Imiterere y’ububiko',
+  'All Stock': 'Ububiko bwose',
+  'Active filters:': 'Akayunguruzo gakora:',
+  'Product filter': 'Akayunguruzo k’igicuruzwa',
+  Stock: 'Ububiko',
+  'Clear all': 'Siba byose',
+  'Inventory Records': 'Inyandiko z’ububiko',
+  'Stock Overview': 'Incamake y’ububiko',
+  'Product Types / Kinds': 'Ubwoko bw’ibicuruzwa',
+  'Type / Kind': 'Ubwoko',
+  Minimum: 'Nibura',
+  Batches: 'Amatsinda',
+  Status: 'Imiterere',
+  Action: 'Igikorwa',
+  'Unknown product': 'Igicuruzwa kitazwi',
+  units: 'ibice',
+  View: 'Reba',
+  'Inventory Details': 'Ibisobanuro by’ububiko',
+  Close: 'Funga',
+  'No image available': 'Nta shusho ihari',
+  'Product Type / Kind': 'Ubwoko bw’igicuruzwa',
+  'No description has been added for this product type.':
+    'Nta bisobanuro byongewe kuri ubu bwoko bw’igicuruzwa.',
+  'Current Stock': 'Ububiko buhari ubu',
+  'Minimum Stock': 'Ububiko ntarengwa',
+  'Batch Breakdown': 'Ibisobanuro by’amatsinda',
+  'Stock by Batch': 'Ububiko kuri buri tsinda',
+  batch: 'itsinda',
+  'No batches found': 'Nta matsinda yabonetse',
+  'This product type does not have any batch records yet.':
+    'Ubu bwoko bw’igicuruzwa ntiburagira inyandiko z’amatsinda.',
+  Received: 'Byakiriwe',
+  Original: 'Umubare wa mbere',
+  Remaining: 'Bisigaye',
+  'Unit Cost': 'Igiciro cy’igice',
+  'Remaining Value': 'Agaciro k’ibisigaye',
+  'Loading inventory...': 'Ububiko burimo gufunguka...',
+  'Reading products, types and batches.':
+    'Turimo gusoma ibicuruzwa, ubwoko n’amatsinda.',
+  'No inventory found': 'Nta bubiko bwabonetse',
+  'Try changing your search or stock filters. Active product types will appear here.':
+    'Gerageza guhindura ibyo washakishije cyangwa akayunguruzo k’ububiko. Ubwoko bw’ibicuruzwa bukora buzagaragara hano.',
+  active: 'Birakora',
+  inactive: 'Ntibikora',
+  low_stock: 'Ububiko buri hasi',
+  finished: 'Byarangiye',
+  cancelled: 'Byahagaritswe',
+  'low stock': 'Ububiko buri hasi',
+  'out of stock': 'Byashize mu bubiko',
+  'in stock': 'Biri mu bubiko',
+};
+
+function useInventoryText() {
+  const { t } = useAppPreferences();
+  const isKinyarwanda =
+    t('inventory').trim().toLowerCase() !== 'inventory';
+
+  const tx = useCallback(
+    (text: string) =>
+      isKinyarwanda ? INVENTORY_KINYARWANDA[text] || text : text,
+    [isKinyarwanda]
+  );
+
+  return { tx, isKinyarwanda };
+}
 
 type Product = {
   id: string;
@@ -46,7 +144,6 @@ type InventoryRow = {
 
 function toNumber(value: number | string | null | undefined) {
   const number = Number(value ?? 0);
-
   return Number.isFinite(number) ? number : 0;
 }
 
@@ -63,8 +160,8 @@ function formatNumber(value: number) {
   }).format(value);
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en-GB', {
+function formatDate(value: string, locale = 'en-GB') {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
@@ -73,8 +170,9 @@ function formatDate(value: string) {
 function getPublicImageUrl(imagePath: string | null) {
   if (!imagePath) return null;
 
-  return supabase.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(imagePath)
-    .data.publicUrl;
+  return supabase.storage
+    .from(PRODUCT_IMAGE_BUCKET)
+    .getPublicUrl(imagePath).data.publicUrl;
 }
 
 function getStockStatus(stock: number, minimumStock: number) {
@@ -127,6 +225,8 @@ function formatStatus(value: string) {
 }
 
 export default function InventoryPage() {
+  const { tx, isKinyarwanda } = useInventoryText();
+
   const [products, setProducts] = useState<Product[]>([]);
   const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -139,7 +239,8 @@ export default function InventoryPage() {
   const [productFilter, setProductFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
 
-  const [selectedRow, setSelectedRow] = useState<InventoryRow | null>(null);
+  const [selectedRow, setSelectedRow] =
+    useState<InventoryRow | null>(null);
 
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -149,7 +250,10 @@ export default function InventoryPage() {
 
       const [productsResult, productTypesResult, batchesResult] =
         await Promise.all([
-          supabase.from('products').select('id, name, status').order('name'),
+          supabase
+            .from('products')
+            .select('id, name, status')
+            .order('name'),
 
           supabase
             .from('product_types')
@@ -181,21 +285,19 @@ export default function InventoryPage() {
       }
 
       setProducts((productsResult.data || []) as Product[]);
-
       setProductTypes((productTypesResult.data || []) as ProductType[]);
-
       setBatches((batchesResult.data || []) as Batch[]);
     } catch (err) {
       console.error('Inventory load error:', err);
 
       setError(
-        err instanceof Error ? err.message : 'Failed to load inventory.'
+        err instanceof Error ? err.message : tx('Failed to load inventory.')
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [tx]);
 
   useEffect(() => {
     loadInventory();
@@ -209,17 +311,18 @@ export default function InventoryPage() {
     const batchesByProductType = new Map<string, Batch[]>();
 
     for (const batch of batches) {
-      const existing = batchesByProductType.get(batch.product_type_id) || [];
+      const existing =
+        batchesByProductType.get(batch.product_type_id) || [];
 
       existing.push(batch);
-
       batchesByProductType.set(batch.product_type_id, existing);
     }
 
     return productTypes
       .filter((productType) => productType.status !== 'inactive')
       .map((productType) => {
-        const typeBatches = batchesByProductType.get(productType.id) || [];
+        const typeBatches =
+          batchesByProductType.get(productType.id) || [];
 
         const stock = typeBatches.reduce(
           (total, batch) =>
@@ -228,10 +331,12 @@ export default function InventoryPage() {
         );
 
         const stockValue = typeBatches.reduce((total, batch) => {
-          const quantity = Math.max(toNumber(batch.remaining_quantity), 0);
+          const quantity = Math.max(
+            toNumber(batch.remaining_quantity),
+            0
+          );
 
           const unitCost = toNumber(batch.unit_cost);
-
           return total + quantity * unitCost;
         }, 0);
 
@@ -258,7 +363,8 @@ export default function InventoryPage() {
         );
 
       const matchesProduct =
-        productFilter === 'all' || row.productType.product_id === productFilter;
+        productFilter === 'all' ||
+        row.productType.product_id === productFilter;
 
       const matchesStock =
         stockFilter === 'all' ||
@@ -275,7 +381,10 @@ export default function InventoryPage() {
 
   const totalTypes = inventoryRows.length;
 
-  const totalUnits = inventoryRows.reduce((total, row) => total + row.stock, 0);
+  const totalUnits = inventoryRows.reduce(
+    (total, row) => total + row.stock,
+    0
+  );
 
   const totalStockValue = inventoryRows.reduce(
     (total, row) => total + row.stockValue,
@@ -286,7 +395,9 @@ export default function InventoryPage() {
     (row) => row.stock > 0 && row.stock <= row.productType.minimum_stock
   ).length;
 
-  const outOfStockCount = inventoryRows.filter((row) => row.stock <= 0).length;
+  const outOfStockCount = inventoryRows.filter(
+    (row) => row.stock <= 0
+  ).length;
 
   const availableCount = inventoryRows.filter(
     (row) => row.stock > row.productType.minimum_stock
@@ -312,7 +423,10 @@ export default function InventoryPage() {
     : null;
 
   const selectedStatus = selectedRow
-    ? getStockStatus(selectedRow.stock, selectedRow.productType.minimum_stock)
+    ? getStockStatus(
+        selectedRow.stock,
+        selectedRow.productType.minimum_stock
+      )
     : null;
 
   return (
@@ -321,23 +435,21 @@ export default function InventoryPage() {
         {/* Hero */}
         <div className="relative overflow-hidden rounded-3xl bg-slate-900 p-6 text-white shadow-xl sm:p-8">
           <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
-
           <div className="absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
 
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-300">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                Stock Control
+                {tx('Stock Control')}
               </div>
 
               <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-                Inventory
+                {tx('Inventory')}
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                Monitor your kitchenware stock, product types, batches and
-                current inventory value.
+                {tx('Monitor your kitchenware stock, product types, batches and current inventory value.')}
               </p>
             </div>
 
@@ -348,8 +460,7 @@ export default function InventoryPage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshIcon className={refreshing ? 'animate-spin' : ''} />
-
-              {refreshing ? 'Refreshing...' : 'Refresh Inventory'}
+              {refreshing ? tx('Refreshing...') : tx('Refresh Inventory')}
             </button>
           </div>
         </div>
@@ -360,9 +471,8 @@ export default function InventoryPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="font-bold">
-                  Inventory could not load completely.
+                  {tx('Inventory could not load completely.')}
                 </p>
-
                 <p className="mt-1 break-words text-xs opacity-80">{error}</p>
               </div>
 
@@ -371,7 +481,7 @@ export default function InventoryPage() {
                 onClick={handleRefresh}
                 className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700"
               >
-                Try Again
+                {tx('Try Again')}
               </button>
             </div>
           </div>
@@ -380,43 +490,47 @@ export default function InventoryPage() {
         {/* Summary */}
         <div className="mt-6">
           <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-            Overview
+            {tx('Overview')}
           </p>
 
           <h2 className="mt-1 text-xl font-black text-slate-900 dark:text-white">
-            Stock at a Glance
+            {tx('Stock at a Glance')}
           </h2>
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
-            title="Product Types"
+            title={tx('Product Types')}
             value={formatNumber(totalTypes)}
-            description="Active types / kinds"
+            description={tx('Active types / kinds')}
             icon={<TypeIcon />}
             accent="indigo"
           />
 
           <SummaryCard
-            title="Units in Stock"
+            title={tx('Units in Stock')}
             value={formatNumber(totalUnits)}
-            description="Across all active batches"
+            description={tx('Across all active batches')}
             icon={<BoxIcon />}
             accent="blue"
           />
 
           <SummaryCard
-            title="Stock Value"
+            title={tx('Stock Value')}
             value={`${formatMoney(totalStockValue)} RWF`}
-            description="Current inventory cost value"
+            description={tx('Current inventory cost value')}
             icon={<MoneyIcon />}
             accent="emerald"
           />
 
           <SummaryCard
-            title="Stock Attention"
+            title={tx('Stock Attention')}
             value={formatNumber(lowStockCount + outOfStockCount)}
-            description={`${lowStockCount} low • ${outOfStockCount} out`}
+            description={
+              isKinyarwanda
+                ? `${lowStockCount} biri hasi • ${outOfStockCount} byashize`
+                : `${lowStockCount} low • ${outOfStockCount} out`
+            }
             icon={<WarningIcon />}
             accent="amber"
           />
@@ -425,21 +539,21 @@ export default function InventoryPage() {
         {/* Status strip */}
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <StatusStat
-            label="Available"
+            label={tx('Available')}
             value={availableCount}
             icon={<CheckIcon />}
             className="text-emerald-600 dark:text-emerald-400"
           />
 
           <StatusStat
-            label="Low Stock"
+            label={tx('Low Stock')}
             value={lowStockCount}
             icon={<WarningIcon />}
             className="text-amber-600 dark:text-amber-400"
           />
 
           <StatusStat
-            label="Out of Stock"
+            label={tx('Out of Stock')}
             value={outOfStockCount}
             icon={<AlertIcon />}
             className="text-rose-600 dark:text-rose-400"
@@ -450,18 +564,18 @@ export default function InventoryPage() {
         <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <div className="flex flex-col gap-1">
             <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-              Find Stock
+              {tx('Find Stock')}
             </p>
 
             <h2 className="text-lg font-black text-slate-900 dark:text-white">
-              Search & Filters
+              {tx('Search & Filters')}
             </h2>
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <div className="md:col-span-1">
               <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Search
+                {tx('Search')}
               </label>
 
               <div className="relative">
@@ -471,7 +585,7 @@ export default function InventoryPage() {
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Product, type, or batch..."
+                  placeholder={tx('Product, type, or batch...')}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-sm outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-950"
                 />
               </div>
@@ -479,7 +593,7 @@ export default function InventoryPage() {
 
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Product
+                {tx('Product')}
               </label>
 
               <select
@@ -487,7 +601,7 @@ export default function InventoryPage() {
                 onChange={(event) => setProductFilter(event.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
-                <option value="all">All Products</option>
+                <option value="all">{tx('All Products')}</option>
 
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
@@ -499,7 +613,7 @@ export default function InventoryPage() {
 
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Stock Status
+                {tx('Stock Status')}
               </label>
 
               <select
@@ -507,13 +621,10 @@ export default function InventoryPage() {
                 onChange={(event) => setStockFilter(event.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
-                <option value="all">All Stock</option>
-
-                <option value="available">Available</option>
-
-                <option value="low">Low Stock</option>
-
-                <option value="out">Out of Stock</option>
+                <option value="all">{tx('All Stock')}</option>
+                <option value="available">{tx('Available')}</option>
+                <option value="low">{tx('Low Stock')}</option>
+                <option value="out">{tx('Out of Stock')}</option>
               </select>
             </div>
           </div>
@@ -521,26 +632,32 @@ export default function InventoryPage() {
           {(search || productFilter !== 'all' || stockFilter !== 'all') && (
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-slate-400">
-                Active filters:
+                {tx('Active filters:')}
               </span>
 
               {search && (
                 <FilterBadge
-                  label={`Search: ${search}`}
+                  label={`${tx('Search')}: ${search}`}
                   onClear={() => setSearch('')}
                 />
               )}
 
               {productFilter !== 'all' && (
                 <FilterBadge
-                  label="Product filter"
+                  label={tx('Product filter')}
                   onClear={() => setProductFilter('all')}
                 />
               )}
 
               {stockFilter !== 'all' && (
                 <FilterBadge
-                  label={`Stock: ${stockFilter}`}
+                  label={`${tx('Stock')}: ${tx(
+                    stockFilter === 'low'
+                      ? 'Low Stock'
+                      : stockFilter === 'out'
+                      ? 'Out of Stock'
+                      : 'Available'
+                  )}`}
                   onClear={() => setStockFilter('all')}
                 />
               )}
@@ -554,7 +671,7 @@ export default function InventoryPage() {
                 }}
                 className="text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
               >
-                Clear all
+                {tx('Clear all')}
               </button>
             </div>
           )}
@@ -566,16 +683,16 @@ export default function InventoryPage() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-                  Inventory Records
+                  {tx('Inventory Records')}
                 </p>
 
                 <h2 className="mt-1 text-xl font-black text-slate-900 dark:text-white">
-                  Stock Overview
+                  {tx('Stock Overview')}
                 </h2>
               </div>
 
               <p className="text-sm text-slate-400">
-                {filteredRows.length} of {inventoryRows.length} types shown
+                {filteredRows.length} {tx('of')} {inventoryRows.length} {tx('types shown')}
               </p>
             </div>
           </div>
@@ -589,21 +706,14 @@ export default function InventoryPage() {
               <table className="min-w-[1100px] w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                   <tr>
-                    <th className="px-5 py-4 font-bold">Product</th>
-
-                    <th className="px-5 py-4 font-bold">Type / Kind</th>
-
-                    <th className="px-5 py-4 font-bold">Stock</th>
-
-                    <th className="px-5 py-4 font-bold">Minimum</th>
-
-                    <th className="px-5 py-4 font-bold">Stock Value</th>
-
-                    <th className="px-5 py-4 font-bold">Batches</th>
-
-                    <th className="px-5 py-4 font-bold">Status</th>
-
-                    <th className="px-5 py-4 text-right font-bold">Action</th>
+                    <th className="px-5 py-4 font-bold">{tx('Product')}</th>
+                    <th className="px-5 py-4 font-bold">{tx('Type / Kind')}</th>
+                    <th className="px-5 py-4 font-bold">{tx('Stock')}</th>
+                    <th className="px-5 py-4 font-bold">{tx('Minimum')}</th>
+                    <th className="px-5 py-4 font-bold">{tx('Stock Value')}</th>
+                    <th className="px-5 py-4 font-bold">{tx('Batches')}</th>
+                    <th className="px-5 py-4 font-bold">{tx('Status')}</th>
+                    <th className="px-5 py-4 text-right font-bold">{tx('Action')}</th>
                   </tr>
                 </thead>
 
@@ -631,11 +741,11 @@ export default function InventoryPage() {
 
                             <div>
                               <p className="font-bold text-slate-900 dark:text-white">
-                                {row.product?.name || 'Unknown product'}
+                                {row.product?.name || tx('Unknown product')}
                               </p>
 
                               <p className="mt-0.5 text-xs text-slate-400">
-                                Product
+                                {tx('Product')}
                               </p>
                             </div>
                           </div>
@@ -678,7 +788,9 @@ export default function InventoryPage() {
                             {formatNumber(row.stock)}
                           </p>
 
-                          <p className="mt-0.5 text-xs text-slate-400">units</p>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            {tx('units')}
+                          </p>
                         </td>
 
                         <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
@@ -707,8 +819,7 @@ export default function InventoryPage() {
                             <span
                               className={`h-1.5 w-1.5 rounded-full ${status.dotClass}`}
                             />
-
-                            {status.label}
+                            {tx(status.label)}
                           </span>
                         </td>
 
@@ -718,7 +829,7 @@ export default function InventoryPage() {
                             onClick={() => openDetails(row)}
                             className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 px-3.5 py-2.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
                           >
-                            View
+                            {tx('View')}
                             <ArrowIcon />
                           </button>
                         </td>
@@ -735,10 +846,10 @@ export default function InventoryPage() {
         <Modal
           open={detailsOpen}
           onClose={closeDetails}
-          title="Inventory Details"
+          title={tx('Inventory Details')}
           description={
             selectedRow
-              ? `${selectedRow.product?.name || 'Unknown product'} → ${
+              ? `${selectedRow.product?.name || tx('Unknown product')} → ${
                   selectedRow.productType.name
                 }`
               : undefined
@@ -749,7 +860,7 @@ export default function InventoryPage() {
               onClick={closeDetails}
               className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
-              Close
+              {tx('Close')}
             </button>
           }
         >
@@ -774,7 +885,7 @@ export default function InventoryPage() {
                           </div>
 
                           <p className="mt-3 text-xs font-semibold text-slate-400">
-                            No image available
+                            {tx('No image available')}
                           </p>
                         </div>
                       </div>
@@ -785,7 +896,7 @@ export default function InventoryPage() {
                   <div className="p-5 sm:p-6">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-                        Product Type / Kind
+                        {tx('Product Type / Kind')}
                       </span>
 
                       {selectedStatus && (
@@ -795,8 +906,7 @@ export default function InventoryPage() {
                           <span
                             className={`h-1.5 w-1.5 rounded-full ${selectedStatus.dotClass}`}
                           />
-
-                          {selectedStatus.label}
+                          {tx(selectedStatus.label)}
                         </span>
                       )}
                     </div>
@@ -806,22 +916,22 @@ export default function InventoryPage() {
                     </h3>
 
                     <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
-                      {selectedRow.product?.name || 'Unknown product'}
+                      {selectedRow.product?.name || tx('Unknown product')}
                     </p>
 
                     <p className="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400">
                       {selectedRow.productType.description ||
-                        'No description has been added for this product type.'}
+                        tx('No description has been added for this product type.')}
                     </p>
 
                     <div className="mt-5 grid grid-cols-2 gap-3">
                       <InfoMetric
-                        label="Current Stock"
+                        label={tx('Current Stock')}
                         value={formatNumber(selectedRow.stock)}
                       />
 
                       <InfoMetric
-                        label="Stock Value"
+                        label={tx('Stock Value')}
                         value={`${formatMoney(selectedRow.stockValue)} RWF`}
                       />
                     </div>
@@ -832,14 +942,14 @@ export default function InventoryPage() {
               {/* Main metrics */}
               <div className="grid gap-3 sm:grid-cols-3">
                 <MetricCard
-                  label="Current Stock"
+                  label={tx('Current Stock')}
                   value={formatNumber(selectedRow.stock)}
                   icon={<BoxIcon />}
                   accent="indigo"
                 />
 
                 <MetricCard
-                  label="Minimum Stock"
+                  label={tx('Minimum Stock')}
                   value={formatNumber(
                     toNumber(selectedRow.productType.minimum_stock)
                   )}
@@ -848,7 +958,7 @@ export default function InventoryPage() {
                 />
 
                 <MetricCard
-                  label="Stock Value"
+                  label={tx('Stock Value')}
                   value={`${formatMoney(selectedRow.stockValue)} RWF`}
                   icon={<MoneyIcon />}
                   accent="emerald"
@@ -860,17 +970,18 @@ export default function InventoryPage() {
                 <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-                      Batch Breakdown
+                      {tx('Batch Breakdown')}
                     </p>
 
                     <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">
-                      Stock by Batch
+                      {tx('Stock by Batch')}
                     </h3>
                   </div>
 
                   <span className="text-xs text-slate-400">
-                    {selectedRow.batches.length} batch
-                    {selectedRow.batches.length === 1 ? '' : 'es'}
+                    {isKinyarwanda
+                      ? `${selectedRow.batches.length} ${tx('Batches').toLowerCase()}`
+                      : `${selectedRow.batches.length} batch${selectedRow.batches.length === 1 ? '' : 'es'}`}
                   </span>
                 </div>
 
@@ -879,11 +990,11 @@ export default function InventoryPage() {
                     <BatchIcon className="mx-auto h-7 w-7 text-slate-400" />
 
                     <p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">
-                      No batches found
+                      {tx('No batches found')}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-400">
-                      This product type does not have any batch records yet.
+                      {tx('This product type does not have any batch records yet.')}
                     </p>
                   </div>
                 ) : (
@@ -892,21 +1003,15 @@ export default function InventoryPage() {
                       <table className="min-w-[900px] w-full text-left text-sm">
                         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                           <tr>
-                            <th className="px-4 py-3 font-bold">Batch</th>
-
-                            <th className="px-4 py-3 font-bold">Received</th>
-
-                            <th className="px-4 py-3 font-bold">Original</th>
-
-                            <th className="px-4 py-3 font-bold">Remaining</th>
-
-                            <th className="px-4 py-3 font-bold">Unit Cost</th>
-
+                            <th className="px-4 py-3 font-bold">{tx('Batch')}</th>
+                            <th className="px-4 py-3 font-bold">{tx('Received')}</th>
+                            <th className="px-4 py-3 font-bold">{tx('Original')}</th>
+                            <th className="px-4 py-3 font-bold">{tx('Remaining')}</th>
+                            <th className="px-4 py-3 font-bold">{tx('Unit Cost')}</th>
                             <th className="px-4 py-3 font-bold">
-                              Remaining Value
+                              {tx('Remaining Value')}
                             </th>
-
-                            <th className="px-4 py-3 font-bold">Status</th>
+                            <th className="px-4 py-3 font-bold">{tx('Status')}</th>
                           </tr>
                         </thead>
 
@@ -923,7 +1028,6 @@ export default function InventoryPage() {
                             );
 
                             const unitCost = toNumber(batch.unit_cost);
-
                             const batchValue = remaining * unitCost;
 
                             return (
@@ -944,7 +1048,10 @@ export default function InventoryPage() {
                                 </td>
 
                                 <td className="px-4 py-4 text-slate-600 dark:text-slate-300">
-                                  {formatDate(batch.received_at)}
+                                  {formatDate(
+                                    batch.received_at,
+                                    isKinyarwanda ? 'rw-RW' : 'en-GB'
+                                  )}
                                 </td>
 
                                 <td className="px-4 py-4 text-slate-600 dark:text-slate-300">
@@ -973,7 +1080,7 @@ export default function InventoryPage() {
                                       batch.status
                                     )}`}
                                   >
-                                    {formatStatus(batch.status)}
+                                    {tx(formatStatus(batch.status))}
                                   </span>
                                 </td>
                               </tr>
@@ -1134,24 +1241,25 @@ function FilterBadge({
       className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
     >
       {label}
-
       <span className="text-indigo-400">×</span>
     </button>
   );
 }
 
 function LoadingState() {
+  const { tx } = useInventoryText();
+
   return (
     <div className="flex min-h-[340px] items-center justify-center p-8">
       <div className="text-center">
         <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600 dark:border-slate-700 dark:border-t-indigo-400" />
 
         <p className="mt-4 text-sm font-semibold text-slate-500 dark:text-slate-400">
-          Loading inventory...
+          {tx('Loading inventory...')}
         </p>
 
         <p className="mt-1 text-xs text-slate-400">
-          Reading products, types and batches.
+          {tx('Reading products, types and batches.')}
         </p>
       </div>
     </div>
@@ -1159,6 +1267,8 @@ function LoadingState() {
 }
 
 function EmptyState() {
+  const { tx } = useInventoryText();
+
   return (
     <div className="flex min-h-[340px] items-center justify-center p-8">
       <div className="text-center">
@@ -1167,12 +1277,11 @@ function EmptyState() {
         </div>
 
         <h3 className="mt-4 text-base font-black text-slate-900 dark:text-white">
-          No inventory found
+          {tx('No inventory found')}
         </h3>
 
         <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-          Try changing your search or stock filters. Active product types will
-          appear here.
+          {tx('Try changing your search or stock filters. Active product types will appear here.')}
         </p>
       </div>
     </div>

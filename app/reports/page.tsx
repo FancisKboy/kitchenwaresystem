@@ -1,12 +1,18 @@
 'use client'
 
 import {
+  Children,
+  cloneElement,
+  isValidElement,
   useEffect,
   useMemo,
   useState,
+  type ReactElement,
+  type ReactNode,
 } from 'react'
 
 import { supabase } from '@/lib/supabase'
+import { useAppPreferences } from '@/app/providers'
 
 type Sale = {
   id: string
@@ -170,7 +176,191 @@ function getReportPeriodLabel(
   return `${formatDate(startDate)} – ${formatDate(endDate)}`
 }
 
+const reportTranslations: Record<string, string> = {
+  'Business Intelligence': 'Ubusesenguzi bw’Ubucuruzi',
+  Reports: 'Raporo',
+  'Understand today\'s sales, profit, payments, debts, and inventory at a glance.':
+    'Reba ibyagurishijwe uyu munsi, inyungu, ubwishyu, imyenda n’ibiri mu bubiko.',
+  'Understand today\'s sales,': 'Reba ibyagurishijwe uyu munsi,',
+  'profit, payments, debts, and': 'inyungu, ubwishyu, imyenda na',
+  'inventory at a glance.': 'n’ibiri mu bubiko muri rusange.',
+  'Live Data': 'Amakuru agezweho',
+  '● Live Data': '● Amakuru agezweho',
+  'Print': 'Gucapa',
+  '🖨️ Print': '🖨️ Gucapa',
+  '📥 Export CSV': '📥 Kohereza muri CSV',
+  '🔄 Refresh': '🔄 Kuvugurura',
+  'Kitchenware Management Report': 'Raporo y’imicungire y’ibikoresho byo mu gikoni',
+  'Period:': 'Igihe:',
+  'Generated:': 'Yakozwe:',
+  'Report could not be loaded': 'Raporo ntiyashoboye gufunguka',
+  'Report Period': 'Igihe cya raporo',
+  'Choose the period you want to analyse.': 'Hitamo igihe ushaka gusesengura.',
+  Today: 'Uyu munsi',
+  today: 'uyu munsi',
+  Yesterday: 'Ejo hashize',
+  yesterday: 'ejo hashize',
+  'This Week': 'Iki cyumweru',
+  'this week': 'iki cyumweru',
+  'Start Date': 'Itariki yo gutangira',
+  'End Date': 'Itariki yo kurangiza',
+  Refresh: 'Kuvugurura',
+  'Building your report...': 'Raporo irimo gutegurwa...',
+  'Loading sales, payments, and inventory.': 'Turimo gutegura amakuru y’ibyagurishijwe, ubwishyu n’ibiri mu bubiko.',
+  'Loading sales...': 'Turimo gutegura ibyagurishijwe...',
+  'to': 'kugeza',
+  'Unknown Product': 'Igicuruzwa kitazwi',
+  'Financial Overview': 'Incamake y’imari',
+  'Total Revenue': 'Amafaranga yose yinjiye',
+  'Total Cost': 'Igiciro cyose',
+  'Total Profit': 'Inyungu yose',
+  'Outstanding Debt': 'Umwenda usigaye',
+  'profit margin': 'ijanisha ry’inyungu',
+  'Business Activity': 'Ibikorwa by’ubucuruzi',
+  'Quick numbers for the selected period.': 'Imibare y’ingenzi y’igihe wahisemo.',
+  Sales: 'Ibyagurishijwe',
+  sale: 'igicuruzwa',
+  sales: 'ibyagurishijwe',
+  'Items Sold': 'Ibintu byagurishijwe',
+  'Payments Received': 'Amafaranga yakiriwe',
+  'Average Sale': 'Impuzandengo y’igicuruzwa',
+  'Current Stock': 'Ibiri mu bubiko ubu',
+  'Current inventory based on remaining quantities and exact batch supply costs.': 'Ibiri mu bubiko hashingiwe ku mubare usigaye n’igiciro nyacyo cyo kugura kuri buri cyiciro.',
+  'Units In Stock': 'Umubare uri mu bubiko',
+  'Current Stock Value': 'Agaciro k’ibiri mu bubiko',
+  'Payment Status': 'Imiterere y’ubwishyu',
+  'How sales in this period were paid.': 'Uko ibyagurishijwe muri iki gihe byishyuwe.',
+  'Paid Sales': 'Ibyagurishijwe byishyuwe',
+  'Partial Sales': 'Ibyagurishijwe byishyuwe igice',
+  'Unpaid Sales': 'Ibyagurishijwe bitishyuwe',
+  'Product Type / Kind Performance': 'Imikorere y’ubwoko bw’ibicuruzwa',
+  'The strongest product types and kinds during the selected period.': 'Ubwoko bw’ibicuruzwa byitwaye neza mu gihe wahisemo.',
+  'No product sales yet': 'Nta bicuruzwa biragurishwa',
+  'There are no product type sales for this period.': 'Nta bwoko bw’ibicuruzwa bwagurishijwe muri iki gihe.',
+  Product: 'Igicuruzwa',
+  'Product Type / Kind': 'Ubwoko bw’igicuruzwa',
+  'Quantity Sold': 'Umubare wagurishijwe',
+  Revenue: 'Amafaranga yinjiye',
+  Cost: 'Ikiguzi',
+  Profit: 'Inyungu',
+  'Sales Report': 'Raporo y’ibyagurishijwe',
+  'No sales found': 'Nta byagurishijwe bibonetse',
+  'No sales were recorded for the selected period.': 'Nta byagurishijwe byanditswe mu gihe wahisemo.',
+  Date: 'Itariki',
+  'Sale ID': 'Nomero y’igicuruzwa',
+  Paid: 'Byishyuwe',
+  paid: 'byishyuwe',
+  Due: 'Asigaye kwishyurwa',
+  Status: 'Imiterere',
+  Partial: 'Byishyuwe igice',
+  partial: 'byishyuwe igice',
+  Unpaid: 'Ntibyishyuwe',
+  unpaid: 'ntibyishyuwe',
+  'Payment Report': 'Raporo y’ubwishyu',
+  'No payments found': 'Nta bwishyu bwabonetse',
+  'No payments were recorded for the selected period.': 'Nta bwishyu bwanditswe mu gihe wahisemo.',
+  Amount: 'Amafaranga',
+  Sale: 'Igicuruzwa',
+  Notes: 'Ibisobanuro',
+  Summary: 'Incamake',
+  Value: 'Agaciro',
+  'Profit Margin': 'Ijanisha ry’inyungu',
+  'Total Payments Received': 'Amafaranga yose yakiriwe',
+  'Number of Sales': 'Umubare w’ibyagurishijwe',
+  'Current Stock Units': 'Umubare w’ibiri mu bubiko',
+  'Product Type Performance': 'Imikorere y’ubwoko bw’ibicuruzwa',
+  'Payment History': 'Amateka y’ubwishyu',
+  'Payment ID': 'Nomero y’ubwishyu',
+  'Recorded transactions': 'Ibikorwa byanditswe',
+  'Customer sales value': 'Agaciro k’ibyagurishijwe ku bakiriya',
+  'Profit after FIFO cost': 'Inyungu nyuma yo gukuramo ikiguzi hakurikijwe FIFO',
+  'Outstanding customer balance': 'Amafaranga umukiriya asigaje kwishyura',
+  'Report': 'Raporo',
+  'Action': 'Igikorwa',
+  'Loading': 'Birimo gutegurwa',
+  'Initial': 'Ibanze',
+}
+
+function translateReportText(value: string, isKinyarwanda: boolean): string {
+  if (!isKinyarwanda) return value
+
+  const leadingWhitespace = value.match(/^\s*/)?.[0] ?? ''
+  const trailingWhitespace = value.match(/\s*$/)?.[0] ?? ''
+  const normalized = value.trim().replace(/\s+/g, ' ')
+
+  let translated = reportTranslations[normalized]
+
+  const performanceMatch = normalized.match(/^Performance for (.+)\.$/)
+  if (performanceMatch) {
+    const period = performanceMatch[1].toLowerCase()
+    const translatedPeriod = reportTranslations[period] || performanceMatch[1]
+    translated = `Imikorere y’igihe cya ${translatedPeriod}.`
+  }
+
+  const salesMatch = normalized.match(/^(\d+)\s+sales?\s+recorded in this period\.$/)
+  if (salesMatch) {
+    translated = `${salesMatch[1]} byagurishijwe byanditswe muri iki gihe.`
+  }
+
+  const paymentsMatch = normalized.match(/^(\d+)\s+payments?\s+recorded in this period\.$/)
+  if (paymentsMatch) {
+    translated = `${paymentsMatch[1]} by’ubwishyu byanditswe muri iki gihe.`
+  }
+
+  const marginMatch = normalized.match(/^([\d.]+)% profit margin$/i)
+  if (marginMatch) {
+    translated = `${marginMatch[1]}% by’inyungu`
+  }
+
+  if (!translated) return value
+  return `${leadingWhitespace}${translated}${trailingWhitespace}`
+}
+
+type ReportTranslationProps = {
+  children: ReactNode
+  isKinyarwanda: boolean
+}
+
+function ReportTranslation({
+  children,
+  isKinyarwanda,
+}: ReportTranslationProps) {
+  function translateNodes(nodes: ReactNode): ReactNode {
+    return Children.map(nodes, (child) => {
+      if (typeof child === 'string') {
+        return translateReportText(child, isKinyarwanda)
+      }
+
+      if (!isValidElement(child)) return child
+
+      const originalProps = child.props as Record<string, unknown>
+      const nextProps: Record<string, unknown> = { ...originalProps }
+
+      if (originalProps.children !== undefined) {
+        nextProps.children = translateNodes(originalProps.children as ReactNode)
+      }
+
+      for (const propName of ['title', 'description', 'label', 'placeholder', 'alt', 'footer', 'hint']) {
+        const propValue = originalProps[propName]
+        if (typeof propValue === 'string') {
+          nextProps[propName] = translateReportText(propValue, isKinyarwanda)
+        }
+      }
+
+      return cloneElement(child as ReactElement<Record<string, unknown>>, nextProps)
+    })
+  }
+
+  return <>{translateNodes(children)}</>
+}
+
 export default function ReportsPage() {
+  const { t } = useAppPreferences()
+  const isKinyarwanda =
+    t('inventory').trim().toLowerCase() !== 'inventory'
+  const tx = (value: string) =>
+    translateReportText(value, isKinyarwanda)
+
   const [sales, setSales] = useState<Sale[]>([])
   const [saleItems, setSaleItems] = useState<SaleItem[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
@@ -669,88 +859,88 @@ export default function ReportsPage() {
     const rows: string[][] = []
 
     rows.push([
-      'Kitchenware Management Report',
+      tx('Kitchenware Management Report'),
     ])
 
     rows.push([
-      `Period: ${startDate} to ${endDate}`,
+      `${tx('Period:')} ${startDate} ${tx('to')} ${endDate}`,
     ])
 
     rows.push([])
 
     rows.push([
-      'Summary',
-      'Value',
+      tx('Summary'),
+      tx('Value'),
     ])
 
     rows.push([
-      'Total Revenue',
+      tx('Total Revenue'),
       `${totalRevenue} RWF`,
     ])
 
     rows.push([
-      'Total Cost',
+      tx('Total Cost'),
       `${totalCost} RWF`,
     ])
 
     rows.push([
-      'Total Profit',
+      tx('Total Profit'),
       `${totalProfit} RWF`,
     ])
 
     rows.push([
-      'Profit Margin',
+      tx('Profit Margin'),
       `${profitMargin.toFixed(2)}%`,
     ])
 
     rows.push([
-      'Total Payments Received',
+      tx('Total Payments Received'),
       `${totalPaid} RWF`,
     ])
 
     rows.push([
-      'Outstanding Debt',
+      tx('Outstanding Debt'),
       `${outstandingDebt} RWF`,
     ])
 
     rows.push([
-      'Number of Sales',
+      tx('Number of Sales'),
       String(filteredSales.length),
     ])
 
     rows.push([
-      'Items Sold',
+      tx('Items Sold'),
       String(totalItemsSold),
     ])
 
     rows.push([
-      'Average Sale',
+      tx('Average Sale'),
       `${averageSale} RWF`,
     ])
 
     rows.push([
-      'Current Stock Units',
+      tx('Current Stock Units'),
       String(stockUnits),
     ])
 
     rows.push([
-      'Current Stock Value',
+      tx('Current Stock Value'),
       `${stockValue} RWF`,
     ])
 
     rows.push([])
 
     rows.push([
-      'Product Type Performance',
+      tx('Product Type Performance'),
     ])
 
     rows.push([
-      'Product',
-      'Product Type / Kind',
-      'Quantity Sold',
-      'Revenue',
-      'Cost',
-      'Profit',
+      tx('Product'),
+      tx('Product Type / Kind'),
+      tx('Quantity Sold'),
+      tx('Revenue'),
+      tx('Cost'),
+      tx('Profit'),
     ])
 
     for (const row of productTypeReports) {
@@ -767,18 +957,18 @@ export default function ReportsPage() {
     rows.push([])
 
     rows.push([
-      'Sales',
+      tx('Sales'),
     ])
 
     rows.push([
-      'Date',
-      'Sale ID',
-      'Revenue',
-      'Cost',
-      'Profit',
-      'Paid',
-      'Due',
-      'Status',
+      tx('Date'),
+      tx('Sale ID'),
+      tx('Revenue'),
+      tx('Cost'),
+      tx('Profit'),
+      tx('Paid'),
+      tx('Due'),
+      tx('Status'),
     ])
 
     for (const sale of filteredSales) {
@@ -812,22 +1002,22 @@ export default function ReportsPage() {
             sale.amount_due,
           ) || 0,
         ),
-        sale.payment_status,
+        tx(sale.payment_status),
       ])
     }
 
     rows.push([])
 
     rows.push([
-      'Payment History',
+      tx('Payment History'),
     ])
 
     rows.push([
-      'Date',
-      'Payment ID',
-      'Sale ID',
-      'Amount',
-      'Notes',
+      tx('Date'),
+      tx('Payment ID'),
+      tx('Sale ID'),
+      tx('Amount'),
+      tx('Notes'),
     ])
 
     for (const payment of filteredPayments) {
@@ -886,7 +1076,8 @@ export default function ReportsPage() {
     )
 
   return (
-    <>
+    <ReportTranslation isKinyarwanda={isKinyarwanda}>
+      <>
       <main className="space-y-6 pb-8 print:space-y-4">
         {/* Hero Header */}
         <section className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 shadow-xl dark:border-gray-800 sm:p-8 print:hidden">
@@ -1455,6 +1646,7 @@ export default function ReportsPage() {
                                   status={
                                     sale.payment_status
                                   }
+                                  isKinyarwanda={isKinyarwanda}
                                 />
                               </td>
                             </tr>
@@ -1592,7 +1784,8 @@ export default function ReportsPage() {
           }
         }
       `}</style>
-    </>
+      </>
+    </ReportTranslation>
   )
 }
 
@@ -1839,8 +2032,10 @@ function EmptyState({
 
 function PaymentStatusBadge({
   status,
+  isKinyarwanda = false,
 }: {
   status: string
+  isKinyarwanda?: boolean
 }) {
   const normalized =
     status.toLowerCase()
@@ -1849,7 +2044,7 @@ function PaymentStatusBadge({
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
         <span>✓</span>
-        Paid
+        {isKinyarwanda ? 'Byishyuwe' : 'Paid'}
       </span>
     )
   }
@@ -1858,7 +2053,7 @@ function PaymentStatusBadge({
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
         <span>◐</span>
-        Partial
+        {isKinyarwanda ? 'Byishyuwe igice' : 'Partial'}
       </span>
     )
   }
@@ -1866,7 +2061,11 @@ function PaymentStatusBadge({
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-bold capitalize text-red-700 dark:bg-red-500/10 dark:text-red-400">
       <span>!</span>
-      {status.replace(/_/g, ' ')}
+      {isKinyarwanda
+        ? normalized === 'unpaid'
+          ? 'Ntibyishyuwe'
+          : normalized.replace(/_/g, ' ')
+        : status.replace(/_/g, ' ')}
     </span>
   )
 }
