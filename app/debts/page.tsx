@@ -1,12 +1,18 @@
 'use client'
 
 import {
+  Children,
+  cloneElement,
+  isValidElement,
   FormEvent,
   useEffect,
   useMemo,
   useState,
 } from 'react'
 
+import type { ReactElement, ReactNode } from 'react'
+
+import { useAppPreferences } from '@/app/providers'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/modal'
 
@@ -78,6 +84,263 @@ function getInitials(name: string) {
 
 function getPaymentStatusLabel(status: string) {
   return status.replace(/_/g, ' ')
+}
+
+const DEBT_TRANSLATIONS: Record<string, string> = {
+  'Customer Credit Control': 'Igenzura ry’imyenda y’abakiriya',
+  Debts: 'Imyenda',
+  'Track customer balances, record payments, and keep every payment history organized.':
+    'Kurikirana imyenda y’abakiriya, wandike ubwishyu kandi ubike amateka yabwo.',
+  Outstanding: 'Umwenda usigaye',
+  'Something went wrong': 'Habaye ikibazo',
+  Success: 'Byagenze neza',
+  'Total Outstanding': 'Umwenda wose usigaye',
+  'Money still owed': 'Amafaranga agomba kwishyurwa',
+  'Customers With Debt': 'Abakiriya bafite umwenda',
+  'Customers with balance': 'Abakiriya basigaranye umwenda',
+  'Total Paid': 'Amafaranga yose yishyuwe',
+  'Collected payments': 'Amafaranga yakiriwe',
+  'Total Sales Value': 'Agaciro k’ibyagurishijwe',
+  'Sales across customers': 'Ibyagurishijwe ku bakiriya bose',
+  'Find Customers': 'Shaka abakiriya',
+  'Search by customer name or phone number.':
+    'Shakisha ukoresheje izina cyangwa nimero ya telefoni.',
+  'Search customers': 'Shakisha abakiriya',
+  'Customer status': 'Imiterere y’umukiriya',
+  'Fully Paid': 'Abamaze kwishyura yose',
+  'Customer Debt': 'Imyenda y’abakiriya',
+  'customer shown': 'umukiriya agaragajwe',
+  'customers shown': 'abakiriya bagaragajwe',
+  'Outstanding accounts': 'Abafite imyenda',
+  'Loading debt information...': 'Turimo gupakira amakuru y’imyenda...',
+  'There are no customers matching the current search and filter.':
+    'Nta bakiriya bahuye n’ishakisha n’icyiciro wahisemo.',
+  'Reset Filters': 'Siba ibyo wahisemo',
+  Customer: 'Umukiriya',
+  'No phone number': 'Nta nimero ya telefoni',
+  Sales: 'Ibyagurishijwe',
+  Paid: 'Yishyuwe',
+  Actions: 'Ibikorwa',
+  History: 'Amateka',
+  'Record Payment': 'Andika ubwishyu',
+  'Selected Sale': 'Igicuruzwa cyagurishijwe cyatoranyijwe',
+  'Sale Date': 'Itariki yo kugurisha',
+  'Sale Total': 'Igiteranyo cy’igicuruzwa',
+  'Payment Details': 'Ibisobanuro by’ubwishyu',
+  'Enter the amount received and payment information.':
+    'Andika amafaranga yakiriwe n’ibisobanuro by’ubwishyu.',
+  'Payment Amount': 'Amafaranga yishyuwe',
+  'Maximum:': 'Ntarenze:',
+  'Enter payment amount': 'Andika amafaranga yishyuwe',
+  'Enter an amount up to the current outstanding balance.':
+    'Andika amafaranga atarenze umwenda usigaye.',
+  'Payment Date': 'Itariki y’ubwishyu',
+  'Date & time': 'Itariki n’isaha',
+  Notes: 'Ibisobanuro',
+  '(optional)': '(si ngombwa)',
+  'Extra information': 'Andi makuru',
+  'Add an optional note about this payment...':
+    'Ongeraho ibisobanuro ku bwishyu...',
+  'For example: cash received, bank transfer, or payment reference.':
+    'Urugero: amafaranga yakiriwe mu ntoki cyangwa kuri banki.',
+  'Payment to Record': 'Amafaranga agiye kwandikwa',
+  'Saving...': 'Turabika...',
+  Cancel: 'Hagarika',
+  'Payment History': 'Amateka y’ubwishyu',
+  Close: 'Funga',
+  'Total Sales': 'Igiteranyo cy’ibyagurishijwe',
+  Payments: 'Ubwishyu',
+  'Sales & Outstanding Balances': 'Ibyagurishijwe n’imyenda isigaye',
+  'Every sale linked to this customer.':
+    'Ibyagurishijwe byose bijyanye n’uyu mukiriya.',
+  'No sales found for this customer.':
+    'Nta byagurishijwe byabonetse kuri uyu mukiriya.',
+  Date: 'Itariki',
+  Due: 'Umwenda usigaye',
+  Status: 'Imiterere',
+  'Recorded payments and corrections.':
+    'Ubwishyu bwanditswe n’ibyakosowe.',
+  'No payments recorded for this customer.':
+    'Nta bwishyu burandikwa kuri uyu mukiriya.',
+  Type: 'Ubwoko',
+  Payment: 'Ubwishyu',
+  'Initial Payment': 'Ubwishyu bwa mbere',
+  'Final Payment': 'Ubwishyu bwa nyuma',
+  'Installment Payment': 'Ubwishyu bw’igice',
+  Correct: 'Kosora',
+  'Correct Payment': 'Kosora ubwishyu',
+  'Correct the amount, date, or notes for this payment.':
+    'Kosora amafaranga, itariki cyangwa ibisobanuro by’ubu bwishyu.',
+  'Save Correction': 'Bika ibyahinduwe',
+  'Original Amount': 'Amafaranga yari yanditswe',
+  'Corrected Amount': 'Amafaranga yakosowe',
+  'Payment notes...': 'Ibisobanuro ku bwishyu...',
+  'Payment amount must be greater than zero.':
+    'Amafaranga yishyuwe agomba kuba arenze zeru.',
+  'Corrected amount must be greater than zero.':
+    'Amafaranga yakosowe agomba kuba arenze zeru.',
+  'Payment recorded successfully.': 'Ubwishyu bwanditswe neza.',
+  'Payment corrected successfully.': 'Ubwishyu bwakosowe neza.',
+  'Failed to record payment.': 'Kwandika ubwishyu byanze.',
+  'Failed to correct payment.': 'Gukosora ubwishyu byanze.',
+  'Failed to load debt information.': 'Gupakira amakuru y’imyenda byanze.',
+  'This sale has no outstanding balance.':
+    'Iki gicuruzwa ntigisigaranye umwenda.',
+  'Use full balance': 'Koresha umwenda wose usigaye',
+  'Remaining after payment': 'Umwenda uzasigara',
+  'Payment cannot exceed the outstanding debt of':
+    'Amafaranga yishyurwa ntashobora kurenga umwenda usigaye wa',
+  'No matching debt accounts': 'Nta myenda ihuye n’ishakisha',
+  'Search name or phone...': 'Shakisha izina cyangwa telefoni...',
+  'All Customers': 'Abakiriya bose',
+  'Paid accounts': 'Abamaze kwishyura',
+  'All accounts': 'Konti zose',
+  // Added so every visible Debts-page text has a translation
+  'Please select a sale before recording a payment.':
+    'Hitamo igicuruzwa mbere yo kwandika ubwishyu.',
+  'Please enter a valid payment date and time.':
+    'Andika itariki n’isaha y’ubwishyu byemewe.',
+  'Record a customer payment.': 'Andika ubwishyu bw’umukiriya.',
+  'Enter the amount received from the customer.':
+    'Andika amafaranga yakiriwe ku mukiriya.',
+  'Date and time the money was received.':
+    'Itariki n’isaha amafaranga yakiriweho.',
+  'Optional details about this payment.':
+    'Andi makuru atari ngombwa kuri ubu bwishyu.',
+  'For example: cash received or bank transfer...':
+    'Urugero: amafaranga yakiriwe mu ntoki cyangwa yoherejwe kuri banki...',
+  Action: 'Igikorwa',
+  Amount: 'Amafaranga',
+  paid: 'Yishyuwe',
+  partial: 'Yishyuwe igice',
+  unpaid: 'Ntiyishyuwe',
+  'Review the original payment and carefully update its details.':
+    'Suzuma ubwishyu bwanditswe hanyuma uvugurure ibisobanuro byabwo witonze.',
+  'Original Payment': 'Ubwishyu bwari bwanditswe',
+  'Recorded on': 'Bwanditswe ku wa',
+  'Only correct this payment if the recorded amount, date, or notes are inaccurate. The original amount above is provided for comparison.':
+    'Kosora ubu bwishyu gusa niba amafaranga, itariki cyangwa ibisobanuro byanditswe atari ukuri. Amafaranga yari yanditswe agaragara hejuru kugira ngo ugereranye.',
+  'Enter corrected amount': 'Andika amafaranga yakosowe',
+  'Difference from original': 'Itandukaniro n’ayari yanditswe',
+  'Payment Date & Time': 'Itariki n’isaha y’ubwishyu',
+  'Correct when the payment was received.':
+    'Kosora igihe ubwishyu bwakiriwe.',
+  'Payment Notes': 'Ibisobanuro ku bwishyu',
+  'Add or correct the payment explanation.':
+    'Ongeraho cyangwa ukosore ibisobanuro by’ubwishyu.',
+  'For example: corrected cash amount or payment reference...':
+    'Urugero: amafaranga yakosowe yo mu ntoki cyangwa nimero y’ubwishyu...',
+}
+
+function translateDebtText(value: string, isKinyarwanda: boolean) {
+  if (!isKinyarwanda) return value
+
+  const trimmed = value.trim()
+
+  // Keep dynamic amounts while translating the message around them.
+  const debtPrefix = 'Payment cannot exceed the outstanding debt of '
+
+  if (trimmed.startsWith(debtPrefix)) {
+    const amountAndCurrency = trimmed.slice(debtPrefix.length)
+
+    return `Amafaranga yishyurwa ntashobora kurenga umwenda usigaye wa ${amountAndCurrency}`
+  }
+
+  if (trimmed.startsWith('Payment for ')) {
+    return `Ubwishyu bwa ${trimmed.slice('Payment for '.length)}`
+  }
+
+  const historySuffix = "'s sales and payments"
+
+  if (trimmed.endsWith(historySuffix)) {
+    return `${trimmed.slice(0, -historySuffix.length)}: ibyagurishijwe n’ubwishyu`
+  }
+
+  if (Object.prototype.hasOwnProperty.call(DEBT_TRANSLATIONS, trimmed)) {
+    return DEBT_TRANSLATIONS[trimmed]
+  }
+
+  return value
+}
+
+function translateDebtNode(
+  node: ReactNode,
+  isKinyarwanda: boolean,
+): ReactNode {
+  if (!isKinyarwanda) return node
+
+  if (typeof node === 'string') {
+    const leading = node.match(/^\s*/)?.[0] ?? ''
+    const trailing = node.match(/\s*$/)?.[0] ?? ''
+    const content = node.slice(
+      leading.length,
+      node.length - trailing.length,
+    )
+
+    if (!content) return node
+
+    return `${leading}${translateDebtText(content, true)}${trailing}`
+  }
+
+  if (Array.isArray(node)) {
+    // Children.map keeps each element's own key and does not add wrapper
+    // elements, so tables, flex rows and lists keep their exact structure.
+    return Children.map(node, (item) => translateDebtNode(item, true))
+  }
+
+  if (isValidElement(node)) {
+    const props = node.props as Record<string, unknown>
+    const nextProps: Record<string, unknown> = { ...props }
+
+    const textProps = [
+      'title',
+      'description',
+      'label',
+      'subtitle',
+      'placeholder',
+      'text',
+      'hint',
+      'aria-label',
+    ]
+
+    for (const key of textProps) {
+      const value = nextProps[key]
+
+      if (typeof value === 'string') {
+        nextProps[key] = translateDebtText(value, true)
+      }
+    }
+
+    if (props.children !== undefined) {
+      nextProps.children = translateDebtNode(
+        props.children as ReactNode,
+        true,
+      )
+    }
+
+    if (props.footer !== undefined) {
+      nextProps.footer = translateDebtNode(
+        props.footer as ReactNode,
+        true,
+      )
+    }
+
+    return cloneElement(
+      node as ReactElement<Record<string, unknown>>,
+      nextProps,
+    )
+  }
+
+  return node
+}
+
+function DebtTranslation({ children }: { children: ReactNode }) {
+  const { t } = useAppPreferences()
+
+  const isKinyarwanda =
+    t('inventory').trim().toLowerCase() !== 'inventory'
+
+  return <>{translateDebtNode(children, isKinyarwanda)}</>
 }
 
 export default function DebtsPage() {
@@ -312,31 +575,33 @@ export default function DebtsPage() {
       0,
     )
 
-  function openRecordPayment(
-    customer: Customer,
-    sale: Sale,
-  ) {
-    setSelectedCustomer(customer)
-    setSelectedSale(sale)
 
-    setPaymentAmount(
-      Number(sale.amount_due) > 0
-        ? String(sale.amount_due)
-        : '',
-    )
-
-    setPaymentDate(
-      new Date()
-        .toISOString()
-        .slice(0, 16),
-    )
-
-    setPaymentNotes('')
-
-    setError('')
-    setSuccess('')
-    setRecordOpen(true)
-  }
+    function openRecordPayment(
+      customer: Customer,
+      sale: Sale,
+    ) {
+      // Close the history popup before opening the payment form.
+      setHistoryOpen(false)
+    
+      setSelectedCustomer(customer)
+      setSelectedSale(sale)
+    
+      setPaymentAmount(
+        Number(sale.amount_due) > 0
+          ? String(sale.amount_due)
+          : '',
+      )
+    
+      setPaymentDate(
+        new Date().toISOString().slice(0, 16),
+      )
+    
+      setPaymentNotes('')
+      setError('')
+      setSuccess('')
+      setRecordOpen(true)
+    }
+    
 
   function closeRecordPayment() {
     if (saving) return
@@ -393,82 +658,85 @@ export default function DebtsPage() {
     setCorrectedNotes('')
   }
 
-  async function handleRecordPayment(
-    event: FormEvent,
-  ) {
+  async function handleRecordPayment(event: FormEvent) {
     event.preventDefault()
-
-    if (!selectedSale) return
-
-    const amount = Number(paymentAmount)
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError(
-        'Payment amount must be greater than zero.',
-      )
+  
+    if (!selectedSale) {
+      setError('Please select a sale before recording a payment.')
       return
     }
-
-    if (
-      amount >
-      Number(selectedSale.amount_due)
-    ) {
+  
+    const amount = Number(paymentAmount)
+    const outstanding = Number(selectedSale.amount_due)
+  
+    if (!Number.isFinite(outstanding) || outstanding <= 0) {
+      setError('This sale has no outstanding balance.')
+      return
+    }
+  
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Payment amount must be greater than zero.')
+      return
+    }
+  
+    if (amount > outstanding + 0.000001) {
       setError(
         `Payment cannot exceed the outstanding debt of ${formatMoney(
-          Number(selectedSale.amount_due),
+          outstanding,
         )} RWF.`,
       )
       return
     }
-
+  
+    const dateToSave = paymentDate
+      ? new Date(paymentDate)
+      : new Date()
+  
+    if (Number.isNaN(dateToSave.getTime())) {
+      setError('Please enter a valid payment date and time.')
+      return
+    }
+  
     try {
       setSaving(true)
       setError('')
       setSuccess('')
-
-      const { error: rpcError } =
-        await supabase.rpc(
-          'record_sale_payment_18139',
-          {
-            p_sale_id: selectedSale.id,
-            p_amount: amount,
-            p_payment_date:
-              paymentDate
-                ? new Date(
-                    paymentDate,
-                  ).toISOString()
-                : new Date().toISOString(),
-            p_notes:
-              paymentNotes.trim() || null,
-          },
-        )
-
+  
+      const { error: rpcError } = await supabase.rpc(
+        'record_sale_payment',
+        {
+          p_sale_id: selectedSale.id,
+          p_amount: amount,
+          p_payment_date: dateToSave.toISOString(),
+          p_notes: paymentNotes.trim() || null,
+        },
+      )
+  
       if (rpcError) {
         throw rpcError
       }
-
-      await loadData()
-
-      setSuccess(
-        'Payment recorded successfully.',
-      )
-
+  
       setRecordOpen(false)
-      setSelectedSale(null)
-      setSelectedCustomer(null)
       setPaymentAmount('')
       setPaymentNotes('')
+      setSelectedSale(null)
+      setSelectedCustomer(null)
+  
+      await loadData()
+  
+      setSuccess('Payment recorded successfully.')
     } catch (err) {
-      console.error(
-        'Record payment error:',
-        err,
-      )
-
-      setError(
-        err instanceof Error
+      console.error('Record payment error:', err)
+  
+      const message =
+        typeof err === 'object' &&
+        err !== null &&
+        'message' in err &&
+        typeof err.message === 'string'
           ? err.message
-          : 'Failed to record payment.',
-      )
+          : 'Failed to record payment.'
+  
+      setError(message)
     } finally {
       setSaving(false)
     }
@@ -543,9 +811,9 @@ export default function DebtsPage() {
       setSaving(false)
     }
   }
-
   return (
-    <main className="space-y-6">
+    <DebtTranslation>
+      <main className="space-y-6">
       {/* Hero */}
       <section className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 shadow-xl dark:border-gray-800 sm:p-8">
         <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl" />
@@ -742,10 +1010,10 @@ export default function DebtsPage() {
               </div>
 
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                {filteredRows.length} customer
-                {filteredRows.length === 1
-                  ? ''
-                  : 's'} shown
+              {filteredRows.length}{' '}
+{filteredRows.length === 1
+  ? 'customer shown'
+  : 'customers shown'}
               </p>
             </div>
 
@@ -960,296 +1228,250 @@ export default function DebtsPage() {
         )}
       </section>
 
-      {/* Record Payment Modal */}
-      <Modal
-        open={recordOpen}
-        onClose={closeRecordPayment}
-        title="Record Payment"
-        description={
-          selectedCustomer
-            ? `Payment for ${selectedCustomer.name}`
-            : 'Record a customer payment.'
-        }
-        footer={
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={closeRecordPayment}
-              disabled={saving}
-              className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              form="record-payment-form"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {saving ? (
-                <>
-                  <Spinner />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Icon
-                    name="check"
-                    size={16}
-                  />
-                  Record Payment
-                </>
-              )}
-            </button>
-          </div>
-        }
+     {/* Record Payment Modal */}
+<Modal
+  open={recordOpen}
+  onClose={closeRecordPayment}
+  title="Record Payment"
+  description={
+    selectedCustomer
+      ? `Payment for ${selectedCustomer.name}`
+      : 'Record a customer payment.'
+  }
+  footer={
+    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+      <button
+        type="button"
+        onClick={closeRecordPayment}
+        disabled={saving}
+        className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
       >
-        {selectedSale && (
-          <form
-            id="record-payment-form"
-            onSubmit={handleRecordPayment}
-            className="space-y-5"
-          >
-            {/* Selected Sale */}
-            <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 via-white to-emerald-50/40 p-5 dark:border-gray-800 dark:from-gray-800/70 dark:via-gray-900 dark:to-emerald-950/10">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                  <Icon
-                    name="money"
-                    size={21}
-                  />
-                </div>
+        Cancel
+      </button>
 
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Selected Sale
-                  </p>
-
-                  <p className="truncate font-bold text-gray-900 dark:text-white">
-                    {selectedCustomer?.name}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <InfoBox
-                  label="Sale Date"
-                  value={formatDate(
-                    selectedSale.sale_date,
-                  )}
-                />
-
-                <InfoBox
-                  label="Sale Total"
-                  value={`${formatMoney(
-                    Number(
-                      selectedSale.total_revenue,
-                    ),
-                  )} RWF`}
-                />
-
-                <InfoBox
-                  label="Outstanding"
-                  value={`${formatMoney(
-                    Number(
-                      selectedSale.amount_due,
-                    ),
-                  )} RWF`}
-                  valueClass="text-amber-600 dark:text-amber-400"
-                />
-              </div>
-            </div>
-
-            {/* Payment Details */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-5">
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-black text-gray-900 dark:text-white">
-                    Payment Details
-                  </h3>
-
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Enter the amount received and payment information.
-                  </p>
-                </div>
-
-                <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 sm:flex">
-                  <Icon
-                    name="check"
-                    size={17}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-5">
-                {/* Payment Amount */}
-                <div>
-                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <label className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                      Payment Amount
-                    </label>
-
-                    <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
-                      <Icon
-                        name="warning"
-                        size={12}
-                      />
-                      Maximum:{' '}
-                      {formatMoney(
-                        Number(
-                          selectedSale.amount_due,
-                        ),
-                      )}{' '}
-                      RWF
-                    </span>
-                  </div>
-
-                  <div className="group relative">
-                    <div className="pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 transition group-focus-within:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:group-focus-within:bg-emerald-900/30">
-                        <Icon
-                          name="money"
-                          size={16}
-                        />
-                      </div>
-
-                      <span className="h-5 w-px bg-gray-200 dark:bg-gray-700" />
-                    </div>
-
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={paymentAmount}
-                      onChange={(event) =>
-                        setPaymentAmount(
-                          event.target.value,
-                        )
-                      }
-                      placeholder="Enter payment amount"
-                      required
-                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 py-3.5 pl-16 pr-20 text-lg font-bold text-gray-900 outline-none transition placeholder:text-sm placeholder:font-normal placeholder:text-gray-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
-                    />
-
-                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-white px-2.5 py-1.5 text-xs font-black text-gray-500 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700">
-                      RWF
-                    </div>
-                  </div>
-
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Enter an amount up to the current outstanding balance.
-                  </p>
-                </div>
-
-                {/* Payment Date */}
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <label className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                      Payment Date
-                    </label>
-
-                    <span className="text-xs text-gray-400">
-                      Date & time
-                    </span>
-                  </div>
-
-                  <div className="relative group">
-                    <div className="pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 items-center">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition group-focus-within:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:group-focus-within:bg-indigo-900/30">
-                        <Icon
-                          name="history"
-                          size={16}
-                        />
-                      </div>
-                    </div>
-
-                    <input
-                      type="datetime-local"
-                      value={paymentDate}
-                      onChange={(event) =>
-                        setPaymentDate(
-                          event.target.value,
-                        )
-                      }
-                      required
-                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 py-3.5 pl-16 pr-4 text-sm font-semibold text-gray-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
-                    />
-                  </div>
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <label className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                      Notes
-                      <span className="ml-1.5 font-normal text-gray-400">
-                        (optional)
-                      </span>
-                    </label>
-
-                    <span className="text-xs text-gray-400">
-                      Extra information
-                    </span>
-                  </div>
-
-                  <div className="relative group">
-                    <div className="pointer-events-none absolute left-3 top-3.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition group-focus-within:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:group-focus-within:bg-gray-700">
-                        <Icon
-                          name="info"
-                          size={16}
-                        />
-                      </div>
-                    </div>
-
-                    <textarea
-                      value={paymentNotes}
-                      onChange={(event) =>
-                        setPaymentNotes(
-                          event.target.value,
-                        )
-                      }
-                      rows={4}
-                      placeholder="Add an optional note about this payment..."
-                      className="w-full resize-none rounded-2xl border border-gray-300 bg-gray-50 py-3.5 pl-16 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-gray-500 focus:bg-white focus:ring-4 focus:ring-gray-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
-                    />
-                  </div>
-
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    For example: cash received, bank transfer, or payment reference.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment Preview */}
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-                    Payment to Record
-                  </p>
-
-                  <p className="mt-1 text-lg font-black text-emerald-800 dark:text-emerald-200">
-                    {formatMoney(
-                      Number(paymentAmount) || 0,
-                    )}{' '}
-                    RWF
-                  </p>
-                </div>
-
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm dark:bg-gray-900 dark:text-emerald-400">
-                  <Icon
-                    name="check"
-                    size={20}
-                  />
-                </div>
-              </div>
-            </div>
-          </form>
+      <button
+        type="submit"
+        form="record-payment-form"
+        disabled={
+          saving ||
+          !selectedSale ||
+          Number(selectedSale.amount_due) <= 0
+        }
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/15 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {saving ? (
+          <>
+            <Spinner />
+            Saving...
+          </>
+        ) : (
+          <>
+            <Icon name="check" size={17} />
+            Record Payment
+          </>
         )}
-      </Modal>
+      </button>
+    </div>
+  }
+>
+  {selectedSale && (
+    <form
+      id="record-payment-form"
+      onSubmit={handleRecordPayment}
+      className="space-y-5"
+    >
+      {/* Selected customer and balance */}
+      <section className="relative overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-5 dark:border-emerald-900/50 dark:from-emerald-950/40 dark:via-gray-900 dark:to-teal-950/20">
+        <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-400/10 blur-2xl" />
+
+        <div className="relative flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+            <Icon name="wallet" size={23} />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+              Selected Sale
+            </p>
+
+            <h3 className="mt-1 truncate text-lg font-black text-gray-950 dark:text-white">
+              {selectedCustomer?.name}
+            </h3>
+
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {formatDate(selectedSale.sale_date)}
+            </p>
+          </div>
+        </div>
+
+        <div className="relative mt-5 grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-white/80 bg-white/80 p-3 dark:border-gray-700 dark:bg-gray-900/80">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+              Sale Total
+            </p>
+
+            <p className="mt-1 break-words text-base font-black text-gray-900 dark:text-white">
+              {formatMoney(Number(selectedSale.total_revenue))} RWF
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/30">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+              Outstanding
+            </p>
+
+            <p className="mt-1 break-words text-base font-black text-amber-800 dark:text-amber-200">
+              {formatMoney(Number(selectedSale.amount_due))} RWF
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Payment amount */}
+      <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-black text-gray-900 dark:text-white">
+              Payment Amount
+            </h3>
+
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Enter the amount received from the customer.
+            </p>
+          </div>
+
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
+            <Icon name="money" size={20} />
+          </div>
+        </div>
+
+        <div className="relative">
+          <input
+            id="payment-amount"
+            type="number"
+            min="0.01"
+            max={Number(selectedSale.amount_due)}
+            step="0.01"
+            inputMode="decimal"
+            value={paymentAmount}
+            onChange={(event) => setPaymentAmount(event.target.value)}
+            placeholder="Enter payment amount"
+            required
+            aria-label="Payment Amount"
+            className="w-full rounded-2xl border border-gray-300 bg-gray-50 py-4 pl-4 pr-20 text-xl font-black text-gray-950 outline-none transition placeholder:text-sm placeholder:font-normal placeholder:text-gray-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
+          />
+
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-white px-2.5 py-1.5 text-xs font-black text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700">
+            RWF
+          </span>
+        </div>
+
+        <button
+          type="button"
+          disabled={saving || Number(selectedSale.amount_due) <= 0}
+          onClick={() =>
+            setPaymentAmount(String(Number(selectedSale.amount_due)))
+          }
+          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+        >
+          <Icon name="check" size={14} />
+          Use full balance
+        </button>
+
+        <div className="mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/60">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+              Payment to Record
+            </span>
+
+            <span className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+              {formatMoney(Number(paymentAmount) || 0)} RWF
+            </span>
+          </div>
+
+          <div className="my-3 h-px bg-gray-200 dark:bg-gray-700" />
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+              Remaining after payment
+            </span>
+
+            <span className="text-sm font-black text-amber-700 dark:text-amber-300">
+              {formatMoney(
+                Math.max(
+                  0,
+                  Number(selectedSale.amount_due) -
+                    (Number(paymentAmount) || 0),
+                ),
+              )}{' '}
+              RWF
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Payment date */}
+      <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+            <Icon name="history" size={19} />
+          </div>
+
+          <div>
+            <h3 className="text-sm font-black text-gray-900 dark:text-white">
+              Payment Date
+            </h3>
+
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Date and time the money was received.
+            </p>
+          </div>
+        </div>
+
+        <input
+          type="datetime-local"
+          value={paymentDate}
+          onChange={(event) => setPaymentDate(event.target.value)}
+          required
+          aria-label="Payment Date"
+          className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
+        />
+      </section>
+
+      {/* Optional notes */}
+      <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+            <Icon name="info" size={19} />
+          </div>
+
+          <div>
+            <h3 className="text-sm font-black text-gray-900 dark:text-white">
+              Notes
+            </h3>
+
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Optional details about this payment.
+            </p>
+          </div>
+        </div>
+
+        <textarea
+          value={paymentNotes}
+          onChange={(event) => setPaymentNotes(event.target.value)}
+          rows={3}
+          maxLength={1000}
+          placeholder="For example: cash received or bank transfer..."
+          className="w-full resize-y rounded-xl border border-gray-300 bg-gray-50 px-3 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-gray-500 focus:bg-white focus:ring-4 focus:ring-gray-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
+        />
+
+        <p className="mt-2 text-right text-xs text-gray-400">
+          {paymentNotes.length}/1000
+        </p>
+      </section>
+    </form>
+  )}
+</Modal>
 
       {/* Payment History Modal */}
       <Modal
@@ -1582,19 +1804,20 @@ export default function DebtsPage() {
         )}
       </Modal>
 
+ 
       {/* Correct Payment Modal */}
       <Modal
         open={correctOpen}
         onClose={closeCorrectPayment}
         title="Correct Payment"
-        description="Correct the amount, date, or notes for this payment."
+        description="Review the original payment and carefully update its details."
         footer={
-          <div className="flex justify-end gap-3">
+          <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-4 dark:border-gray-800 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={closeCorrectPayment}
               disabled={saving}
-              className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               Cancel
             </button>
@@ -1602,8 +1825,8 @@ export default function DebtsPage() {
             <button
               type="submit"
               form="correct-payment-form"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              disabled={saving || !selectedPayment}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? (
                 <>
@@ -1612,10 +1835,7 @@ export default function DebtsPage() {
                 </>
               ) : (
                 <>
-                  <Icon
-                    name="check"
-                    size={16}
-                  />
+                  <Icon name="check" size={17} />
                   Save Correction
                 </>
               )}
@@ -1623,89 +1843,173 @@ export default function DebtsPage() {
           </div>
         }
       >
-        <form
-          id="correct-payment-form"
-          onSubmit={handleCorrectPayment}
-          className="space-y-5"
-        >
-          {selectedPayment && (
-            <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 dark:border-blue-900/50 dark:bg-blue-950/20">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
-                  <Icon
-                    name="edit"
-                    size={20}
-                  />
+        {selectedPayment && (
+          <form
+            id="correct-payment-form"
+            onSubmit={handleCorrectPayment}
+            className="space-y-5"
+          >
+            {/* Original payment summary */}
+            <section className="relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-5 dark:border-blue-900/50 dark:from-blue-950/40 dark:via-gray-900 dark:to-indigo-950/30">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+                  <Icon name="edit" size={22} />
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">
-                    Original Amount
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                    Original Payment
                   </p>
 
-                  <p className="mt-1 text-xl font-black text-gray-900 dark:text-white">
-                    {formatMoney(
-                      Number(
-                        selectedPayment.amount,
-                      ),
-                    )}{' '}
-                    RWF
+                  <p className="mt-2 break-words text-2xl font-black tracking-tight text-gray-950 dark:text-white">
+                    {formatMoney(Number(selectedPayment.amount))} RWF
+                  </p>
+
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Recorded on {formatDateTime(selectedPayment.payment_date)}
                   </p>
                 </div>
               </div>
-            </div>
-          )}
 
-          <Field label="Corrected Amount">
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={correctedAmount}
-              onChange={(event) =>
-                setCorrectedAmount(
-                  event.target.value,
-                )
-              }
-              required
-              className="input-style"
-            />
-          </Field>
+              <div className="mt-4 rounded-xl border border-blue-100 bg-white/80 p-3 dark:border-gray-700 dark:bg-gray-900/70">
+                <p className="text-xs leading-5 text-gray-600 dark:text-gray-300">
+                  Only correct this payment if the recorded amount,
+                  date, or notes are inaccurate. The original amount
+                  above is provided for comparison.
+                </p>
+              </div>
+            </section>
 
-          <Field label="Payment Date">
-            <input
-              type="datetime-local"
-              value={correctedDate}
-              onChange={(event) =>
-                setCorrectedDate(
-                  event.target.value,
-                )
-              }
-              required
-              className="input-style"
-            />
-          </Field>
+            {/* Corrected amount */}
+            <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-5">
+              <label
+                htmlFor="corrected-payment-amount"
+                className="mb-2 block text-sm font-bold text-gray-800 dark:text-gray-200"
+              >
+                Corrected Amount
+              </label>
 
-          <Field
-            label="Notes"
-            optional
-          >
-            <textarea
-              value={correctedNotes}
-              onChange={(event) =>
-                setCorrectedNotes(
-                  event.target.value,
-                )
-              }
-              rows={3}
-              placeholder="Payment notes..."
-              className="input-style resize-none"
-            />
-          </Field>
-        </form>
+              <div className="relative">
+                <input
+                  id="corrected-payment-amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={correctedAmount}
+                  onChange={(event) =>
+                    setCorrectedAmount(event.target.value)
+                  }
+                  required
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-4 pr-20 text-lg font-bold text-gray-950 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
+                  placeholder="Enter corrected amount"
+                />
+
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-white px-2.5 py-1.5 text-xs font-black text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700">
+                  RWF
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-3 dark:bg-gray-800/60">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  Difference from original
+                </span>
+
+                <span
+                  className={`text-sm font-black ${
+                    Number(correctedAmount) > Number(selectedPayment.amount)
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : Number(correctedAmount) < Number(selectedPayment.amount)
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {Number(correctedAmount) > Number(selectedPayment.amount)
+                    ? '+'
+                    : Number(correctedAmount) < Number(selectedPayment.amount)
+                      ? '−'
+                      : ''}
+                  {formatMoney(
+                    Math.abs(
+                      (Number(correctedAmount) || 0) -
+                        Number(selectedPayment.amount),
+                    ),
+                  )}{' '}
+                  RWF
+                </span>
+              </div>
+            </section>
+
+            {/* Corrected date */}
+            <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-5">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+                  <Icon name="history" size={19} />
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                    Payment Date & Time
+                  </h3>
+
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Correct when the payment was received.
+                  </p>
+                </div>
+              </div>
+
+              <input
+                id="corrected-payment-date"
+                type="datetime-local"
+                value={correctedDate}
+                onChange={(event) =>
+                  setCorrectedDate(event.target.value)
+                }
+                required
+                className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
+              />
+            </section>
+
+            {/* Corrected notes */}
+            <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-5">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  <Icon name="info" size={19} />
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                    Payment Notes
+                  </h3>
+
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Add or correct the payment explanation.
+                  </p>
+                </div>
+              </div>
+
+              <textarea
+                value={correctedNotes}
+                onChange={(event) =>
+                  setCorrectedNotes(event.target.value)
+                }
+                rows={4}
+                maxLength={1000}
+                placeholder="For example: corrected cash amount or payment reference..."
+                className="w-full resize-y rounded-xl border border-gray-300 bg-gray-50 px-3 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-950"
+              />
+
+              <p className="mt-2 text-right text-xs text-gray-400">
+                {correctedNotes.length}/1000
+              </p>
+            </section>
+          </form>
+        )}
       </Modal>
-    </main>
-  )
+
+      </main>
+  </DebtTranslation>
+)
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1893,7 +2197,19 @@ function Spinner() {
   )
 }
 
-function PaymentTypeBadge({
+function PaymentTypeBadge(props: {
+  payment: Payment
+  allPayments: Payment[]
+  sale?: Sale
+}) {
+  return (
+    <DebtTranslation>
+      {renderPaymentTypeBadge(props)}
+    </DebtTranslation>
+  )
+}
+
+function renderPaymentTypeBadge({
   payment,
   allPayments,
   sale,

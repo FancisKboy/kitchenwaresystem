@@ -54,8 +54,65 @@ const ALLOWED_IMAGE_TYPES = [
   'image/webp',
 ]
 
+const PRODUCT_TRANSLATIONS: Record<string, string> = {
+  'Something went wrong': 'Hari ikitagenze neza',
+  Success: 'Byagenze neza',
+  active: 'bikora',
+  'low-stock types': 'ubwoko bufite ububiko bukeya',
+  'Current inventory value': 'Agaciro k’ububiko buhari',
+  'Catalog Management': 'Gucunga Urutonde rw’Ibicuruzwa',
+  'Manage products and their exact sellable types / kinds.':
+    'Gucunga ibicuruzwa n’ubwoko nyabwo bwabyo bugurishwa.',
+  shown: 'bigaragara',
+  'Product catalog': 'Urutonde rw’ibicuruzwa',
+  'Try a different search term.': 'Gerageza irindi jambo ushakisha.',
+  Low: 'Bukeya',
+  'Update the product information.': 'Vugurura amakuru y’igicuruzwa.',
+  'Update the product type, stock threshold and image.':
+    'Vugurura ubwoko bw’igicuruzwa, ingano ntoya y’ububiko n’ifoto.',
+  'Product Type / Kind': 'Ubwoko bw’Igicuruzwa',
+  'Define the exact sellable variation of a parent product.':
+    'Sobanura ubwoko nyabwo bugurishwa bw’igicuruzwa nyamukuru.',
+  'Parent:': 'Igicuruzwa nyamukuru:',
+  UNITS: 'IBICE',
+  'Add a visual identity for this exact product type / kind.':
+    'Ongeraho ifoto iranga ubu bwoko bw’igicuruzwa.',
+  'JPG, PNG, WebP • Max 5 MB': 'JPG, PNG, WebP • Ntarenze 5 MB',
+  'Image ready': 'Ifoto irateguye',
+  'Product type': 'Ubwoko bw’igicuruzwa',
+  'You can also drag another image here or focus this form and press':
+    'Ushobora no gukurura indi foto hano cyangwa ugahitamo iyi fomu ugakanda',
+  'to paste a copied image.': 'kugira ngo ushyireho ifoto wakoporoye.',
+  'Drop image here': 'Reka ifoto hano',
+  'Add product type image': 'Ongeraho ifoto y’ubwoko bw’igicuruzwa',
+  'Drag an image into this box, choose a file, or copy an image and press':
+    'Kurura ifoto muri iki gisanduku, hitamo dosiye, cyangwa wandukure ifoto ukande',
+  'or drag & drop / paste': 'cyangwa kurura & reka / shyiraho',
+  '(optional)': '(si ngombwa)',
+}
+
+function translateProducts(text: string, isRw: boolean) {
+  if (!isRw) {
+    return text
+  }
+
+  return Object.prototype.hasOwnProperty.call(
+    PRODUCT_TRANSLATIONS,
+    text,
+  )
+    ? PRODUCT_TRANSLATIONS[text]
+    : text
+}
+
 export default function ProductsPage() {
   const { t } = useAppPreferences()
+
+  const isRw =
+    t('inventory').trim().toLowerCase() !==
+    'inventory'
+
+  const tx = (text: string) =>
+    translateProducts(text, isRw)
 
   const [products, setProducts] = useState<Product[]>([])
   const [productTypes, setProductTypes] = useState<ProductType[]>([])
@@ -1349,7 +1406,7 @@ export default function ProductsPage() {
 
             <div>
               <p className="font-bold">
-                Something went wrong
+                {tx('Something went wrong')}
               </p>
 
               <p className="mt-1">
@@ -1370,7 +1427,7 @@ export default function ProductsPage() {
 
             <div>
               <p className="font-bold">
-                Success
+                {tx('Success')}
               </p>
 
               <p className="mt-1">
@@ -1385,7 +1442,7 @@ export default function ProductsPage() {
           <SummaryCard
             label={t('products')}
             value={products.length.toLocaleString()}
-            subtitle={`${activeProducts} active`}
+            subtitle={`${activeProducts} ${tx('active')}`}
             icon="package"
             accent="indigo"
           />
@@ -1395,7 +1452,7 @@ export default function ProductsPage() {
               'productTypes',
             )}
             value={productTypes.length.toLocaleString()}
-            subtitle={`${activeTypes} active`}
+            subtitle={`${activeTypes} ${tx('active')}`}
             icon="layers"
             accent="blue"
           />
@@ -1403,7 +1460,7 @@ export default function ProductsPage() {
           <SummaryCard
             label={t('stock')}
             value={totalStockUnits.toLocaleString()}
-            subtitle={`${lowStockTypes} low-stock types`}
+            subtitle={`${lowStockTypes} ${tx('low-stock types')}`}
             icon="inventory"
             accent="amber"
           />
@@ -1411,7 +1468,7 @@ export default function ProductsPage() {
           <SummaryCard
             label={t('stockValue')}
             value={`${totalStockValue.toLocaleString()} RWF`}
-            subtitle="Current inventory value"
+            subtitle={tx('Current inventory value')}
             icon="money"
             accent="emerald"
           />
@@ -1422,12 +1479,13 @@ export default function ProductsPage() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h2 className="text-lg font-black">
-                Catalog Management
+                {tx('Catalog Management')}
               </h2>
 
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Manage products and their exact
-                sellable types / kinds.
+                {tx(
+                  'Manage products and their exact sellable types / kinds.',
+                )}
               </p>
             </div>
 
@@ -1549,7 +1607,7 @@ export default function ProductsPage() {
 
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {filteredProducts.length}{' '}
-                          shown
+                          {tx('shown')}
                         </p>
                       </div>
                     </div>
@@ -1557,7 +1615,7 @@ export default function ProductsPage() {
 
                   <span className="inline-flex w-fit items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                    Product catalog
+                    {tx('Product catalog')}
                   </span>
                 </div>
               </div>
@@ -1607,7 +1665,7 @@ export default function ProductsPage() {
                             title={t(
                               'noProductsFound',
                             )}
-                            description="Try a different search term."
+                            description={tx('Try a different search term.')}
                           />
                         </td>
                       </tr>
@@ -1814,7 +1872,7 @@ export default function ProductsPage() {
 
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {filteredTypes.length}{' '}
-                          shown
+                          {tx('shown')}
                         </p>
                       </div>
                     </div>
@@ -1902,7 +1960,7 @@ export default function ProductsPage() {
                             title={t(
                               'noProductTypesFound',
                             )}
-                            description="Try a different search term."
+                            description={tx('Try a different search term.')}
                           />
                         </td>
                       </tr>
@@ -1935,6 +1993,11 @@ export default function ProductsPage() {
                             quantity <=
                               minimum
 
+                          const typeImageUrl =
+                            getPublicImageUrl(
+                              type.image_path,
+                            )
+
                           return (
                             <tr
                               key={
@@ -1944,12 +2007,25 @@ export default function ProductsPage() {
                             >
                               <td className="px-5 py-4">
                                 <div className="flex items-center gap-3">
-                                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white">
-                                    <Icon
-                                      name="layers"
-                                      size={18}
+                                  {typeImageUrl ? (
+                                    <img
+                                      src={
+                                        typeImageUrl
+                                      }
+                                      alt={
+                                        type.name
+                                      }
+                                      loading="lazy"
+                                      className="h-11 w-11 shrink-0 rounded-xl border border-slate-200 bg-slate-100 object-cover dark:border-slate-700 dark:bg-slate-800"
                                     />
-                                  </div>
+                                  ) : (
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white">
+                                      <Icon
+                                        name="layers"
+                                        size={18}
+                                      />
+                                    </div>
+                                  )}
 
                                   <div className="min-w-0">
                                     <p className="truncate font-bold text-slate-900 dark:text-white">
@@ -1993,7 +2069,7 @@ export default function ProductsPage() {
                                         name="warning"
                                         size={10}
                                       />
-                                      Low
+                                      {tx('Low')}
                                     </span>
                                   )}
                                 </div>
@@ -2474,7 +2550,7 @@ export default function ProductsPage() {
         title={productFormTitle}
         description={
           editingProduct
-            ? 'Update the product information.'
+            ? tx('Update the product information.')
             : t(
                 'createProductDescription',
               )
@@ -2585,7 +2661,9 @@ export default function ProductsPage() {
         title={productTypeFormTitle}
         description={
           editingProductType
-            ? 'Update the product type, stock threshold and image.'
+            ? tx(
+                'Update the product type, stock threshold and image.',
+              )
             : t(
                 'createProductTypeDescription',
               )
@@ -2667,7 +2745,7 @@ export default function ProductsPage() {
 
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
-                  Product Type / Kind
+                  {tx('Product Type / Kind')}
                 </p>
 
                 <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">
@@ -2682,8 +2760,9 @@ export default function ProductsPage() {
                 </h3>
 
                 <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-slate-400">
-                  Define the exact sellable
-                  variation of a parent product.
+                  {tx(
+                    'Define the exact sellable variation of a parent product.',
+                  )}
                 </p>
               </div>
             </div>
@@ -2742,7 +2821,7 @@ export default function ProductsPage() {
                   size={12}
                 />
 
-                Parent:{' '}
+                {tx('Parent:')}{' '}
                 {getProductName(
                   typeProductId,
                 )}
@@ -2801,7 +2880,7 @@ export default function ProductsPage() {
                 />
 
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                  UNITS
+                  {tx('UNITS')}
                 </span>
               </div>
             </div>
@@ -2816,13 +2895,14 @@ export default function ProductsPage() {
                 </label>
 
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Add a visual identity for this exact product
-                  type / kind.
+                  {tx(
+                    'Add a visual identity for this exact product type / kind.',
+                  )}
                 </p>
               </div>
 
               <span className="text-[11px] font-semibold text-slate-400">
-                JPG, PNG, WebP • Max 5 MB
+                {tx('JPG, PNG, WebP • Max 5 MB')}
               </span>
             </div>
 
@@ -2876,7 +2956,7 @@ export default function ProductsPage() {
                       }
                       alt={
                         typeName ||
-                        'Product type'
+                        tx('Product type')
                       }
                       className="h-64 w-full object-cover sm:h-72"
                     />
@@ -2886,7 +2966,7 @@ export default function ProductsPage() {
                         name="check"
                         size={12}
                       />
-                      Image ready
+                      {tx('Image ready')}
                     </div>
 
                     {typeImageFile && (
@@ -2951,12 +3031,13 @@ export default function ProductsPage() {
                   </div>
 
                   <div className="rounded-xl bg-slate-100 px-3 py-2.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                    You can also drag another image here
-                    or focus this form and press{' '}
+                    {tx(
+                      'You can also drag another image here or focus this form and press',
+                    )}{' '}
                     <strong className="text-slate-700 dark:text-slate-200">
                       Ctrl + V
                     </strong>{' '}
-                    to paste a copied image.
+                    {tx('to paste a copied image.')}
                   </div>
                 </div>
               ) : (
@@ -2980,14 +3061,14 @@ export default function ProductsPage() {
 
                   <h4 className="mt-5 text-base font-black">
                     {isImageDragging
-                      ? 'Drop image here'
-                      : 'Add product type image'}
+                      ? tx('Drop image here')
+                      : tx('Add product type image')}
                   </h4>
 
                   <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
-                    Drag an image into this box,
-                    choose a file, or copy an image and
-                    press{' '}
+                    {tx(
+                      'Drag an image into this box, choose a file, or copy an image and press',
+                    )}{' '}
                     <strong className="text-slate-700 dark:text-slate-200">
                       Ctrl + V
                     </strong>
@@ -3015,7 +3096,7 @@ export default function ProductsPage() {
                     </label>
 
                     <span className="text-xs text-slate-400">
-                      or drag & drop / paste
+                      {tx('or drag & drop / paste')}
                     </span>
                   </div>
 
@@ -3042,7 +3123,7 @@ export default function ProductsPage() {
             <label className="mb-2 block text-sm font-bold dark:text-slate-200">
               {t('description')}
               <span className="ml-1 font-normal text-slate-400">
-                (optional)
+                {tx('(optional)')}
               </span>
             </label>
 
@@ -3245,16 +3326,18 @@ function StatusBadge({
     | 'active'
     | 'inactive'
 }) {
+  const { t } = useAppPreferences()
+
   return status ===
     'active' ? (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-      Active
+      {t('active')}
     </span>
   ) : (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
       <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-      Inactive
+      {t('inactive')}
     </span>
   )
 }
@@ -3525,4 +3608,4 @@ function Icon({
     default:
       return null
   }
-}
+} 

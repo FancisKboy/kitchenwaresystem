@@ -1,9 +1,11 @@
+
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
 import Modal from '@/components/modal';
+import { useAppPreferences } from '@/app/providers';
 
 type ActionType = 'loss' | 'damage' | 'return' | 'recover';
 
@@ -101,6 +103,184 @@ type StockRow = {
   stock: number;
 };
 
+const KINYARWANDA_LABELS: Record<string, string> = {
+  'Inventory Control': 'Igenzura ry’Ububiko',
+  'Stock Management': 'Imicungire y’Ububiko',
+  'Control stock losses, damaged items, customer returns, and recovery of previously lost stock using your exact batch inventory.':
+    'Genzura ibicuruzwa byatakaye, byangiritse, ibyagarujwe n’ibyagaruwe mu bubiko, ukoresheje amatsinda yabyo nyayo.',
+  Refresh: 'Ongera utangize',
+  'Units In Stock': 'Ibicuruzwa biri mu bubiko',
+  'Stock Value': 'Agaciro k’ibiri mu bubiko',
+  'Based on remaining batch costs': 'Habarwa igiciro cy’ibyasigaye mu matsinda',
+  'Low Stock': 'Ububiko buri hasi',
+  'Product types at minimum level': 'Ubwoko bw’ibicuruzwa bigeze ku rugero ntarengwa',
+  'Out of Stock': 'Byashize mu bubiko',
+  'Product types with zero stock': 'Ubwoko bw’ibicuruzwa bitagifite mu bubiko',
+  'Stock Actions': 'Ibikorwa by’ububiko',
+  'Search instead of scrolling through large lists when selecting stock, sales, or lost records.':
+    'Shakisha aho kuzenguruka urutonde rurerure mu guhitamo ububiko, igurisha cyangwa ibyatakaye.',
+  'Record Loss': 'Andika ibyatakaye',
+  'Stock Activity Summary': 'Incamake y’ibikorwa by’ububiko',
+  'A quick count of recorded losses, customer returns, and damage.':
+    'Umubare w’ibyatakaye, ibyagarujwe n’ibyangiritse byanditswe.',
+  'click to adjust': 'kanda kugira ngo uhindure',
+  'units left': 'ibice bisigaye',
+  'units recoverable': 'ibice bishobora kugarurwa',
+  unit: 'igice',
+  batch: 'itsinda',
+  batches: 'amatsinda',
+  'Record stock that was lost and remove it from available inventory.':
+    'Andika ibicuruzwa byatakaye maze ubikure mu bubiko buboneka.',
+  'Record Damage': 'Andika ibyangiritse',
+  'Record damaged stock and remove it from available inventory.':
+    'Andika ibicuruzwa byangiritse maze ubikure mu bubiko buboneka.',
+  'Process Return': 'Kwakira ibyagarujwe',
+  'Process a customer return and choose whether returned items are resellable or damaged.':
+    'Andika ibyagarujwe n’umukiriya, ugaragaze niba byongera kugurishwa cyangwa byangiritse.',
+  'Recover Lost Stock': 'Kugarura ibyatakaye',
+  'Recover previously lost stock and add the recovered quantity back to its original batch.':
+    'Garura ibicuruzwa byari byaratakaye ubishyire mu itsinda byari birimo.',
+  'Recover Stock': 'Garura mu bubiko',
+  Stock: 'Ububiko',
+  'Current Stock': 'Ububiko buhari',
+  'Click a product type to open stock adjustment with that product already selected.':
+    'Kanda ku bwoko bw’igicuruzwa kugira ngo utangire igikorwa icyo gicuruzwa cyatoranyijwe.',
+  'Search product, type, batch...': 'Shakisha igicuruzwa, ubwoko cyangwa itsinda...',
+  'No stock found': 'Nta bubiko bwabonetse',
+  'Product Type': 'Ubwoko bw’igicuruzwa',
+  Product: 'Igicuruzwa',
+  'Unknown Product': 'Igicuruzwa kitazwi',
+  Minimum: 'Nibura',
+  Batches: 'Amatsinda',
+  Status: 'Imiterere',
+  Action: 'Igikorwa',
+  units: 'ibice',
+  'Adjust Stock': 'Hindura ububiko',
+  Cancel: 'Kureka',
+  'Product / Product Type': 'Igicuruzwa / Ubwoko bw’igicuruzwa',
+  'Search product or product type...': 'Shakisha igicuruzwa cyangwa ubwoko bwacyo...',
+  'No matching stock found': 'Nta bubiko buhuye n’ishakisha bwabonetse',
+  'Try a product or type name.': 'Gerageza izina ry’igicuruzwa cyangwa ubwoko bwacyo.',
+  'in stock': 'mu bubiko',
+  'Search for a product': 'Shakisha igicuruzwa',
+  'Search by product name or product type.':
+    'Shakisha ukoresheje izina ry’igicuruzwa cyangwa ubwoko bwacyo.',
+  'Change selection': 'Hindura icyatoranyijwe',
+  Batch: 'Itsinda',
+  'Select batch': 'Hitamo itsinda',
+  Remaining: 'Ibisigaye',
+  'Unit Cost': 'Igiciro cy’igice',
+  Received: 'Byakiriwe',
+  Quantity: 'Umubare',
+  'Enter quantity': 'Andika umubare',
+  Reason: 'Impamvu',
+  'The selected quantity will be removed from the exact batch. The existing stock function will also record the adjustment and history automatically.':
+    'Umubare watoranyijwe uravanwa mu itsinda ryawo. Sisitemu iriho izandika n’impinduka mu mateka y’ibikorwa.',
+  'Record stock that is missing from the selected batch.':
+    'Andika ibicuruzwa bibuze mu itsinda ryatoranyijwe.',
+  'Record stock that is damaged and should no longer be sellable.':
+    'Andika ibicuruzwa byangiritse bitagomba kongera kugurishwa.',
+  'Why was the stock damaged?': 'Ni iki cyatumye ibicuruzwa byangirika?',
+  'Why is the stock considered lost?': 'Kuki ibi bicuruzwa bifatwa nk’ibyatakaye?',
+  'Process Customer Return': 'Kwakira ibyagarujwe n’umukiriya',
+  'Search for the original sale, then select the exact sold batch items being returned.':
+    'Shakisha igurisha ryabanje, uhitemo ibicuruzwa byo muri ya matsinda byagarujwe.',
+  Processing: 'Birimo gutunganywa',
+  'Original Sale': 'Igurisha ryabanje',
+  'Search customer, date, amount...': 'Shakisha umukiriya, itariki cyangwa amafaranga...',
+  'No matching sales found': 'Nta igurisha rihuye n’ishakisha ryabonetse',
+  'Walk-in Customer': 'Umukiriya utanditswe',
+  Customer: 'Umukiriya',
+  'Search for the sale': 'Shakisha igurisha',
+  'Search by customer, date, amount, or payment status.':
+    'Shakisha ukoresheje umukiriya, itariki, amafaranga cyangwa uko kwishyura bihagaze.',
+  'Change sale': 'Hindura igurisha',
+  Revenue: 'Amafaranga yagurishijweho',
+  Date: 'Itariki',
+  'Sold Items': 'Ibicuruzwa byagurishijwe',
+  'Select the exact batch and quantity being returned.':
+    'Hitamo itsinda nyaryo n’umubare w’ibigarujwe.',
+  Sold: 'Byagurishijwe',
+  Returnable: 'Bishobora kugarurwa',
+  'Return Quantity': 'Umubare ugarurwa',
+  Condition: 'Imiterere',
+  Resellable: 'Byongera kugurishwa',
+  Damaged: 'Byangiritse',
+  'No batch allocation was found for this sale item.':
+    'Nta tsinda ryabitswe kuri iki gicuruzwa cyagurishijwe ryabonetse.',
+  'No sale items found.': 'Nta bicuruzwa by’iri gurisha byabonetse.',
+  'Return Reason': 'Impamvu yo kugarura',
+  'Why is the customer returning these items?':
+    'Kuki umukiriya agarura ibi bicuruzwa?',
+  'Lost Stock Record': 'Ibyatakaye byanditswe',
+  'No recoverable losses found': 'Nta bicuruzwa byatakaye bishobora kugarurwa byabonetse',
+  recoverable: 'bishobora kugarurwa',
+  'Search for lost stock': 'Shakisha ibicuruzwa byatakaye',
+  'Only losses with unresolved quantities are shown.':
+    'Hagaragazwa gusa ibicuruzwa byatakaye bitaragarurwa byose.',
+  'Original Reason': 'Impamvu ya mbere',
+  'Originally Lost': 'Umubare watakaye mbere',
+  'Can Recover': 'Bishobora kugarurwa',
+  Recorded: 'Byanditswe',
+  'Recovery Quantity': 'Umubare ugaruwe',
+  'Enter quantity recovered': 'Andika umubare ugaruwe',
+  'Recovery Reason': 'Impamvu yo kugarura',
+  'Explain why the lost stock was recovered.':
+    'Sobanura impamvu ibicuruzwa byatakaye byagaruwe.',
+  'product types': 'ubwoko bw’ibicuruzwa',
+  'loss records': 'ibyabaye byo gutakaza',
+  'return records': 'ibyabaye byo kugarura',
+  'damage records': 'ibyabaye by’ibyangiritse',
+  'Loss Events': 'Ibyabaye byo gutakaza',
+  'Customer Returns': 'Ibyagarujwe n’abakiriya',
+  'Damage Events': 'Ibyabaye by’ibyangiritse',
+  'Total recorded loss entries': 'Umubare w’ibyatakaye byanditswe',
+  'Unique customer return transactions': 'Umubare w’ibikorwa byihariye byo kugarura',
+  'Total recorded damage entries': 'Umubare w’ibyangiritse byanditswe',
+  'Failed to load stock management data.':
+    'Kunanirwa gufungura amakuru y’imicungire y’ububiko.',
+  'Please select a product type.': 'Hitamo ubwoko bw’igicuruzwa.',
+  'Please select a batch.': 'Hitamo itsinda.',
+  'Quantity must be greater than zero.': 'Umubare ugomba kuba urenze zeru.',
+  'Please enter a reason.': 'Andika impamvu.',
+  'Selected batch was not found.': 'Itsinda ryatoranyijwe ntiryabonetse.',
+  'Stock damage recorded successfully.': 'Ibyangiritse byanditswe neza.',
+  'Stock loss recorded successfully.': 'Ibyatakaye byanditswe neza.',
+  'Failed to record stock adjustment.':
+    'Kunanirwa kwandika impinduka mu bubiko.',
+  'Please select a sale.': 'Hitamo igurisha.',
+  'Please select at least one item to return.':
+    'Hitamo nibura igicuruzwa kimwe cyo kugarura.',
+  'Please enter a return reason.': 'Andika impamvu yo kugarura.',
+  'One or more return quantities are invalid.':
+    'Umubare w’ibicuruzwa bigarurwa ntiwemewe.',
+  'Customer return processed successfully.':
+    'Ibyagarujwe n’umukiriya byatunganyijwe neza.',
+  'Failed to process customer return.':
+    'Kunanirwa gutunganya ibyagarujwe n’umukiriya.',
+  'Please select a lost stock record.': 'Hitamo inyandiko y’ibicuruzwa byatakaye.',
+  'Recovery quantity must be greater than zero.':
+    'Umubare ugarurwa ugomba kuba urenze zeru.',
+  'Please enter a recovery reason.': 'Andika impamvu yo kugarura.',
+  'Selected loss record was not found.':
+    'Inyandiko y’ibyatakaye yatoranyijwe ntiyabonetse.',
+  'Lost stock recovered successfully.': 'Ibicuruzwa byatakaye byagaruwe neza.',
+  'Failed to recover lost stock.': 'Kunanirwa kugarura ibicuruzwa byatakaye.',
+  'Saving...': 'Birabikwa...',
+  'Processing...': 'Birimo gutunganywa...',
+  'Recovering...': 'Birimo kugarurwa...',
+  'Search for a previously lost stock record and recover it back to its original batch.':
+    'Shakisha inyandiko y’ibicuruzwa byatakaye maze ubigarure mu itsinda byari birimo.',
+  remaining: 'bisigaye',
+  Available: 'Birahari',
+  'Stock activity summary': 'Incamake y’ibikorwa by’ububiko',
+  'Recovered stock goes back to the original batch. The existing recovery function will record the recovery and update inventory.':
+    'Ibicuruzwa byagaruwe bisubira mu itsinda ryabyo. Sisitemu iriho irabyandika kandi igahindura ububiko.',
+  paid: 'Yishyuwe',
+  partial: 'Yishyuye igice',
+  unpaid: 'Ntiyishyuwe',
+};
+
 const actions = [
   {
     id: 'loss' as ActionType,
@@ -142,8 +322,8 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en-GB', {
+function formatDate(value: string, locale = 'en-GB') {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
   }).format(new Date(value));
 }
@@ -173,18 +353,21 @@ function getStockStatusClass(status: string) {
   return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
 }
 
-function getActionTitle(action: ActionType | null) {
+function getActionTitle(
+  action: ActionType | null,
+  translate: (label: string) => string = (label) => label
+) {
   switch (action) {
     case 'loss':
-      return 'Record Loss';
+      return translate('Record Loss');
     case 'damage':
-      return 'Record Damage';
+      return translate('Record Damage');
     case 'return':
-      return 'Process Return';
+      return translate('Process Return');
     case 'recover':
-      return 'Recover Lost Stock';
+      return translate('Recover Lost Stock');
     default:
-      return 'Stock Management';
+      return translate('Stock Management');
   }
 }
 
@@ -393,6 +576,13 @@ function SearchBox({
 }
 
 export default function StockManagementPage() {
+  const { t } = useAppPreferences();
+  // The app's existing t('inventory') key changes with its English/Kinyarwanda setting.
+  const isKinyarwanda = t('inventory').trim().toLowerCase() !== 'inventory';
+  const tx = (english: string) =>
+    isKinyarwanda ? KINYARWANDA_LABELS[english] || english : english;
+  const dateLocale = isKinyarwanda ? 'rw-RW' : 'en-GB';
+
   const [products, setProducts] = useState<Product[]>([]);
   const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -496,7 +686,7 @@ export default function StockManagementPage() {
           .select(
             'id, product_type_id, batch_id, quantity, adjustment_type, reason, created_at, related_adjustment_id'
           )
-          .in('adjustment_type', ['lost', 'recovered'])
+          .in('adjustment_type', ['lost', 'recovered', 'damaged'])
           .order('created_at', {
             ascending: false,
           }),
@@ -535,7 +725,7 @@ export default function StockManagementPage() {
       setError(
         err instanceof Error
           ? err.message
-          : 'Failed to load stock management data.'
+          : tx('Failed to load stock management data.')
       );
     } finally {
       setLoading(false);
@@ -578,13 +768,13 @@ export default function StockManagementPage() {
         productType,
         product: productMap.get(productType.product_id) || {
           id: productType.product_id,
-          name: 'Unknown Product',
+          name: isKinyarwanda ? 'Igicuruzwa kitazwi' : 'Unknown Product',
         },
         batches: typeBatches,
         stock,
       };
     });
-  }, [productTypes, batches, productMap]);
+  }, [productTypes, batches, productMap, isKinyarwanda]);
 
   const filteredStockRows = useMemo(() => {
     const value = stockSearch.trim().toLowerCase();
@@ -687,14 +877,14 @@ export default function StockManagementPage() {
     const results = sales.filter((sale) => {
       const customerName = sale.customer_id
         ? customerMap.get(sale.customer_id)?.name || ''
-        : 'Walk-in Customer';
+        : tx('Walk-in Customer');
 
       if (!value) return true;
 
       return (
         customerName.toLowerCase().includes(value) ||
-        sale.payment_status.toLowerCase().includes(value) ||
-        formatDate(sale.sale_date).toLowerCase().includes(value) ||
+        tx(sale.payment_status.toLowerCase()).toLowerCase().includes(value) ||
+        formatDate(sale.sale_date, dateLocale).toLowerCase().includes(value) ||
         formatMoney(Number(sale.total_revenue) || 0)
           .toLowerCase()
           .includes(value)
@@ -702,7 +892,7 @@ export default function StockManagementPage() {
     });
 
     return results.slice(0, 30);
-  }, [sales, customerMap, saleSearch]);
+  }, [sales, customerMap, saleSearch, dateLocale, isKinyarwanda]);
 
   const searchableLosses = useMemo(() => {
     const value = lossSearch.trim().toLowerCase();
@@ -754,6 +944,15 @@ export default function StockManagementPage() {
       ),
     0
   );
+
+  // Count adjustment records, and count unique return transactions rather than return-item rows.
+  const lossCount = stockAdjustments.filter(
+    (adjustment) => adjustment.adjustment_type === 'lost'
+  ).length;
+  const damageCount = stockAdjustments.filter(
+    (adjustment) => adjustment.adjustment_type === 'damaged'
+  ).length;
+  const returnCount = new Set(returnItems.map((item) => item.return_id)).size;
 
   function resetActionForms() {
     setSelectedProductTypeId('');
@@ -916,35 +1115,37 @@ export default function StockManagementPage() {
     event.preventDefault();
 
     if (!selectedProductTypeId) {
-      setError('Please select a product type.');
+      setError(tx('Please select a product type.'));
       return;
     }
 
     if (!selectedBatchId) {
-      setError('Please select a batch.');
+      setError(tx('Please select a batch.'));
       return;
     }
 
     const requestedQuantity = Number(quantity);
 
     if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
-      setError('Quantity must be greater than zero.');
+      setError(tx('Quantity must be greater than zero.'));
       return;
     }
 
     if (!reason.trim()) {
-      setError('Please enter a reason.');
+      setError(tx('Please enter a reason.'));
       return;
     }
 
     if (!selectedBatch) {
-      setError('Selected batch was not found.');
+      setError(tx('Selected batch was not found.'));
       return;
     }
 
     if (requestedQuantity > Number(selectedBatch.remaining_quantity)) {
       setError(
-        `Only ${selectedBatch.remaining_quantity} units are currently available in this batch.`
+        isKinyarwanda
+          ? `Muri iri tsinda hasigaye ibice ${selectedBatch.remaining_quantity} gusa.`
+          : `Only ${selectedBatch.remaining_quantity} units are currently available in this batch.`
       );
       return;
     }
@@ -968,8 +1169,8 @@ export default function StockManagementPage() {
 
       setSuccess(
         selectedAction === 'damage'
-          ? 'Stock damage recorded successfully.'
-          : 'Stock loss recorded successfully.'
+          ? tx('Stock damage recorded successfully.')
+          : tx('Stock loss recorded successfully.')
       );
 
       setSelectedAction(null);
@@ -980,7 +1181,7 @@ export default function StockManagementPage() {
       setError(
         err instanceof Error
           ? err.message
-          : 'Failed to record stock adjustment.'
+          : tx('Failed to record stock adjustment.')
       );
     } finally {
       setSaving(false);
@@ -991,17 +1192,17 @@ export default function StockManagementPage() {
     event.preventDefault();
 
     if (!selectedSaleId) {
-      setError('Please select a sale.');
+      setError(tx('Please select a sale.'));
       return;
     }
 
     if (!returnLines.length) {
-      setError('Please select at least one item to return.');
+      setError(tx('Please select at least one item to return.'));
       return;
     }
 
     if (!returnReason.trim()) {
-      setError('Please enter a return reason.');
+      setError(tx('Please enter a return reason.'));
       return;
     }
 
@@ -1009,7 +1210,7 @@ export default function StockManagementPage() {
       const maxQuantity = getReturnableQuantity(line.saleItemId, line.batchId);
 
       if (line.quantity <= 0 || line.quantity > maxQuantity) {
-        setError('One or more return quantities are invalid.');
+        setError(tx('One or more return quantities are invalid.'));
         return;
       }
     }
@@ -1036,7 +1237,7 @@ export default function StockManagementPage() {
 
       await loadData();
 
-      setSuccess('Customer return processed successfully.');
+      setSuccess(tx('Customer return processed successfully.'));
 
       setSelectedAction(null);
       resetActionForms();
@@ -1046,7 +1247,7 @@ export default function StockManagementPage() {
       setError(
         err instanceof Error
           ? err.message
-          : 'Failed to process customer return.'
+          : tx('Failed to process customer return.')
       );
     } finally {
       setSaving(false);
@@ -1057,19 +1258,19 @@ export default function StockManagementPage() {
     event.preventDefault();
 
     if (!selectedLossId) {
-      setError('Please select a lost stock record.');
+      setError(tx('Please select a lost stock record.'));
       return;
     }
 
     const requestedQuantity = Number(recoveryQuantity);
 
     if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
-      setError('Recovery quantity must be greater than zero.');
+      setError(tx('Recovery quantity must be greater than zero.'));
       return;
     }
 
     if (!recoveryReason.trim()) {
-      setError('Please enter a recovery reason.');
+      setError(tx('Please enter a recovery reason.'));
       return;
     }
 
@@ -1078,13 +1279,15 @@ export default function StockManagementPage() {
     );
 
     if (!selectedLoss) {
-      setError('Selected loss record was not found.');
+      setError(tx('Selected loss record was not found.'));
       return;
     }
 
     if (requestedQuantity > selectedLoss.unresolvedQuantity) {
       setError(
-        `Only ${selectedLoss.unresolvedQuantity} units can currently be recovered.`
+        isKinyarwanda
+          ? `Ibice bishobora kugarurwa ubu ni ${selectedLoss.unresolvedQuantity} gusa.`
+          : `Only ${selectedLoss.unresolvedQuantity} units can currently be recovered.`
       );
       return;
     }
@@ -1104,7 +1307,7 @@ export default function StockManagementPage() {
 
       await loadData();
 
-      setSuccess('Lost stock recovered successfully.');
+      setSuccess(tx('Lost stock recovered successfully.'));
 
       setSelectedAction(null);
       resetActionForms();
@@ -1112,7 +1315,7 @@ export default function StockManagementPage() {
       console.error('Stock recovery error:', err);
 
       setError(
-        err instanceof Error ? err.message : 'Failed to recover lost stock.'
+        err instanceof Error ? err.message : tx('Failed to recover lost stock.')
       );
     } finally {
       setSaving(false);
@@ -1139,17 +1342,15 @@ export default function StockManagementPage() {
             <div>
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-300">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                Inventory Control
+                {tx('Inventory Control')}
               </div>
 
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Stock Management
+                {tx('Stock Management')}
               </h1>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
-                Control stock losses, damaged items, customer returns, and
-                recovery of previously lost stock using your exact batch
-                inventory.
+                {tx('Control stock losses, damaged items, customer returns, and recovery of previously lost stock using your exact batch inventory.')}
               </p>
             </div>
 
@@ -1163,7 +1364,7 @@ export default function StockManagementPage() {
                 name="refresh"
                 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
               />
-              Refresh
+              {tx('Refresh')}
             </button>
           </div>
         </div>
@@ -1194,23 +1395,23 @@ export default function StockManagementPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewCard
           icon="package"
-          label="Units In Stock"
+          label={tx('Units In Stock')}
           value={totalUnits.toString()}
-          description={`${stockRows.length} product types`}
+          description={`${stockRows.length} ${tx('product types')}`}
         />
 
         <OverviewCard
           icon="money"
-          label="Stock Value"
+          label={tx('Stock Value')}
           value={`${formatMoney(totalStockValue)} RWF`}
-          description="Based on remaining batch costs"
+          description={tx('Based on remaining batch costs')}
         />
 
         <OverviewCard
           icon="warning"
-          label="Low Stock"
+          label={tx('Low Stock')}
           value={lowStockCount.toString()}
-          description="Product types at minimum level"
+          description={tx('Product types at minimum level')}
           valueClass={
             lowStockCount > 0 ? 'text-amber-600 dark:text-amber-400' : undefined
           }
@@ -1218,25 +1419,59 @@ export default function StockManagementPage() {
 
         <OverviewCard
           icon="damage"
-          label="Out of Stock"
+          label={tx('Out of Stock')}
           value={outOfStockCount.toString()}
-          description="Product types with zero stock"
+          description={tx('Product types with zero stock')}
           valueClass={
             outOfStockCount > 0 ? 'text-red-600 dark:text-red-400' : undefined
           }
         />
       </section>
 
+      {/* Stock activity counts */}
+      <section aria-label={tx('Stock Activity Summary')}>
+        <div className="mb-3">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+            {tx('Stock Activity Summary')}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {tx('A quick count of recorded losses, customer returns, and damage.')}
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <OverviewCard
+            icon="loss"
+            label={tx('Loss Events')}
+            value={lossCount.toString()}
+            description={tx('Total recorded loss entries')}
+            valueClass={lossCount > 0 ? 'text-red-600 dark:text-red-400' : undefined}
+          />
+          <OverviewCard
+            icon="return"
+            label={tx('Customer Returns')}
+            value={returnCount.toString()}
+            description={tx('Unique customer return transactions')}
+            valueClass={returnCount > 0 ? 'text-blue-600 dark:text-blue-400' : undefined}
+          />
+          <OverviewCard
+            icon="damage"
+            label={tx('Damage Events')}
+            value={damageCount.toString()}
+            description={tx('Total recorded damage entries')}
+            valueClass={damageCount > 0 ? 'text-amber-600 dark:text-amber-400' : undefined}
+          />
+        </div>
+      </section>
+
       {/* Actions */}
       <section>
         <div className="mb-4">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            Stock Actions
+            {tx('Stock Actions')}
           </h2>
 
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Search instead of scrolling through large lists when selecting
-            stock, sales, or lost records.
+            {tx('Search instead of scrolling through large lists when selecting stock, sales, or lost records.')}
           </p>
         </div>
 
@@ -1262,16 +1497,16 @@ export default function StockManagementPage() {
                 </div>
 
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                  Stock
+                  {tx('Stock')}
                 </span>
               </div>
 
               <h3 className="mt-5 text-base font-bold text-slate-900 dark:text-white">
-                {action.title}
+                {tx(action.title)}
               </h3>
 
               <p className="mt-2 min-h-[72px] text-sm leading-6 text-slate-500 dark:text-slate-400">
-                {action.description}
+                {tx(action.description)}
               </p>
 
               <button
@@ -1287,7 +1522,7 @@ export default function StockManagementPage() {
                     : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}
               >
-                {action.button}
+                {tx(action.button)}
               </button>
             </div>
           ))}
@@ -1299,12 +1534,11 @@ export default function StockManagementPage() {
         <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              Current Stock
+              {tx('Current Stock')}
             </h2>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Click a product type to open stock adjustment with that product
-              already selected.
+              {tx('Click a product type to open stock adjustment with that product already selected.')}
             </p>
           </div>
 
@@ -1317,7 +1551,7 @@ export default function StockManagementPage() {
             <input
               value={stockSearch}
               onChange={(event) => setStockSearch(event.target.value)}
-              placeholder="Search product, type, batch..."
+              placeholder={tx('Search product, type, batch...')}
               className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             />
           </div>
@@ -1338,7 +1572,7 @@ export default function StockManagementPage() {
             />
 
             <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
-              No stock found
+              {tx('No stock found')}
             </p>
           </div>
         ) : (
@@ -1346,13 +1580,13 @@ export default function StockManagementPage() {
             <table className="min-w-[1000px] w-full text-left text-sm">
               <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
-                  <th className="px-5 py-4 font-bold">Product Type</th>
-                  <th className="px-5 py-4 font-bold">Product</th>
-                  <th className="px-5 py-4 font-bold">Stock</th>
-                  <th className="px-5 py-4 font-bold">Minimum</th>
-                  <th className="px-5 py-4 font-bold">Batches</th>
-                  <th className="px-5 py-4 font-bold">Status</th>
-                  <th className="px-5 py-4 text-right font-bold">Action</th>
+                  <th className="px-5 py-4 font-bold">{tx('Product Type')}</th>
+                  <th className="px-5 py-4 font-bold">{tx('Product')}</th>
+                  <th className="px-5 py-4 font-bold">{tx('Stock')}</th>
+                  <th className="px-5 py-4 font-bold">{tx('Minimum')}</th>
+                  <th className="px-5 py-4 font-bold">{tx('Batches')}</th>
+                  <th className="px-5 py-4 font-bold">{tx('Status')}</th>
+                  <th className="px-5 py-4 text-right font-bold">{tx('Action')}</th>
                 </tr>
               </thead>
 
@@ -1388,9 +1622,7 @@ export default function StockManagementPage() {
                             </p>
 
                             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                              {row.batches.length} batch
-                              {row.batches.length === 1 ? '' : 'es'} · click to
-                              adjust
+                              {row.batches.length} {tx(row.batches.length === 1 ? 'batch' : 'batches')} · {tx('click to adjust')}
                             </p>
                           </div>
                         </button>
@@ -1406,7 +1638,7 @@ export default function StockManagementPage() {
                         </span>
 
                         <span className="ml-1 text-xs text-slate-400">
-                          units
+                          {tx('units')}
                         </span>
                       </td>
 
@@ -1424,7 +1656,7 @@ export default function StockManagementPage() {
                             status
                           )}`}
                         >
-                          {status}
+                          {tx(status)}
                         </span>
                       </td>
 
@@ -1436,7 +1668,7 @@ export default function StockManagementPage() {
                           }
                           className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300"
                         >
-                          Adjust Stock
+                          {tx('Adjust Stock')}
                           <Icon name="arrow" className="h-3.5 w-3.5" />
                         </button>
                       </td>
@@ -1453,11 +1685,11 @@ export default function StockManagementPage() {
       <Modal
         open={selectedAction === 'loss' || selectedAction === 'damage'}
         onClose={closeAction}
-        title={getActionTitle(selectedAction)}
+        title={getActionTitle(selectedAction, tx)}
         description={
           selectedAction === 'loss'
-            ? 'Record stock that is missing from the selected batch.'
-            : 'Record stock that is damaged and should no longer be sellable.'
+            ? tx('Record stock that is missing from the selected batch.')
+            : tx('Record stock that is damaged and should no longer be sellable.')
         }
         footer={
           <div className="flex justify-end gap-3">
@@ -1467,7 +1699,7 @@ export default function StockManagementPage() {
               disabled={saving}
               className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
-              Cancel
+              {tx('Cancel')}
             </button>
 
             <button
@@ -1481,10 +1713,10 @@ export default function StockManagementPage() {
               )}
 
               {saving
-                ? 'Saving...'
+                ? tx('Saving...')
                 : selectedAction === 'damage'
-                ? 'Record Damage'
-                : 'Record Loss'}
+                ? tx('Record Damage')
+                : tx('Record Loss')}
             </button>
           </div>
         }
@@ -1502,16 +1734,14 @@ export default function StockManagementPage() {
               />
 
               <p className="text-sm leading-6 text-indigo-800 dark:text-indigo-200">
-                The selected quantity will be removed from the exact batch. The
-                existing stock function will also record the adjustment and
-                history automatically.
+                {tx('The selected quantity will be removed from the exact batch. The existing stock function will also record the adjustment and history automatically.')}
               </p>
             </div>
           </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Product / Product Type
+              {tx('Product / Product Type')}
             </label>
 
             {!selectedProductType ? (
@@ -1519,7 +1749,7 @@ export default function StockManagementPage() {
                 <SearchBox
                   value={productTypeSearch}
                   onChange={setProductTypeSearch}
-                  placeholder="Search product or product type..."
+                  placeholder={tx('Search product or product type...')}
                 />
 
                 {productTypeSearch.trim() && (
@@ -1532,11 +1762,11 @@ export default function StockManagementPage() {
                         />
 
                         <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          No matching stock found
+                          {tx('No matching stock found')}
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
-                          Try a product or type name.
+                          {tx('Try a product or type name.')}
                         </p>
                       </div>
                     ) : (
@@ -1571,7 +1801,7 @@ export default function StockManagementPage() {
                                 {row.stock}
                               </p>
                               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                in stock
+                                {tx('in stock')}
                               </p>
                             </div>
                           </button>
@@ -1589,11 +1819,11 @@ export default function StockManagementPage() {
                     />
 
                     <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                      Search for a product
+                      {tx('Search for a product')}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-400">
-                      Search by product name or product type.
+                      {tx('Search by product name or product type.')}
                     </p>
                   </div>
                 )}
@@ -1613,11 +1843,11 @@ export default function StockManagementPage() {
                     </p>
 
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {selectedProduct?.name || 'Product'}
+                      {selectedProduct?.name || tx('Product')}
                     </p>
 
                     <p className="mt-1 text-xs font-bold text-indigo-600 dark:text-indigo-300">
-                      {selectedProductStock} units left
+                      {selectedProductStock} {tx('units left')}
                     </p>
                   </div>
 
@@ -1625,7 +1855,7 @@ export default function StockManagementPage() {
                     type="button"
                     onClick={clearProductTypeSelection}
                     className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-700 dark:hover:bg-slate-900 dark:hover:text-white"
-                    title="Change selection"
+                    title={tx('Change selection')}
                   >
                     <Icon name="close" className="h-4 w-4" />
                   </button>
@@ -1636,7 +1866,7 @@ export default function StockManagementPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Batch
+              {tx('Batch')}
             </label>
 
             <select
@@ -1646,12 +1876,12 @@ export default function StockManagementPage() {
               disabled={!selectedProductTypeId}
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:disabled:bg-slate-900"
             >
-              <option value="">Select batch</option>
+              <option value="">{tx('Select batch')}</option>
 
               {selectedTypeBatches.map((batch) => (
                 <option key={batch.id} value={batch.id}>
-                  {batch.batch_number} — {batch.remaining_quantity} remaining —{' '}
-                  {formatMoney(Number(batch.unit_cost) || 0)} RWF/unit
+                  {batch.batch_number} — {batch.remaining_quantity} {tx('remaining')} —{' '}
+                  {formatMoney(Number(batch.unit_cost) || 0)} RWF/{tx('unit')}
                 </option>
               ))}
             </select>
@@ -1660,27 +1890,27 @@ export default function StockManagementPage() {
           {selectedBatch && (
             <div className="grid gap-3 sm:grid-cols-3">
               <MiniInfo
-                label="Remaining"
-                value={`${selectedBatch.remaining_quantity} units`}
+                label={tx('Remaining')}
+                value={`${selectedBatch.remaining_quantity} ${tx('units')}`}
               />
 
               <MiniInfo
-                label="Unit Cost"
+                label={tx('Unit Cost')}
                 value={`${formatMoney(
                   Number(selectedBatch.unit_cost) || 0
                 )} RWF`}
               />
 
               <MiniInfo
-                label="Received"
-                value={formatDate(selectedBatch.received_at)}
+                label={tx('Received')}
+                value={formatDate(selectedBatch.received_at, dateLocale)}
               />
             </div>
           )}
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Quantity
+              {tx('Quantity')}
             </label>
 
             <input
@@ -1689,7 +1919,7 @@ export default function StockManagementPage() {
               step="1"
               value={quantity}
               onChange={(event) => setQuantity(event.target.value)}
-              placeholder="Enter quantity"
+              placeholder={tx('Enter quantity')}
               required
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             />
@@ -1697,7 +1927,7 @@ export default function StockManagementPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Reason
+              {tx('Reason')}
             </label>
 
             <textarea
@@ -1706,8 +1936,8 @@ export default function StockManagementPage() {
               rows={3}
               placeholder={
                 selectedAction === 'damage'
-                  ? 'Why was the stock damaged?'
-                  : 'Why is the stock considered lost?'
+                  ? tx('Why was the stock damaged?')
+                  : tx('Why is the stock considered lost?')
               }
               required
               className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
@@ -1720,8 +1950,8 @@ export default function StockManagementPage() {
       <Modal
         open={selectedAction === 'return'}
         onClose={closeAction}
-        title="Process Customer Return"
-        description="Search for the original sale, then select the exact sold batch items being returned."
+        title={tx('Process Customer Return')}
+        description={tx('Search for the original sale, then select the exact sold batch items being returned.')}
         footer={
           <div className="flex justify-end gap-3">
             <button
@@ -1730,7 +1960,7 @@ export default function StockManagementPage() {
               disabled={saving}
               className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
-              Cancel
+              {tx('Cancel')}
             </button>
 
             <button
@@ -1743,7 +1973,7 @@ export default function StockManagementPage() {
                 <Icon name="refresh" className="h-4 w-4 animate-spin" />
               )}
 
-              {saving ? 'Processing...' : 'Process Return'}
+              {saving ? tx('Processing...') : tx('Process Return')}
             </button>
           </div>
         }
@@ -1751,7 +1981,7 @@ export default function StockManagementPage() {
         <form id="return-form" onSubmit={handleReturn} className="space-y-5">
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Original Sale
+              {tx('Original Sale')}
             </label>
 
             {!selectedSale ? (
@@ -1759,7 +1989,7 @@ export default function StockManagementPage() {
                 <SearchBox
                   value={saleSearch}
                   onChange={setSaleSearch}
-                  placeholder="Search customer, date, amount..."
+                  placeholder={tx('Search customer, date, amount...')}
                   accent="blue"
                 />
 
@@ -1773,7 +2003,7 @@ export default function StockManagementPage() {
                         />
 
                         <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          No matching sales found
+                          {tx('No matching sales found')}
                         </p>
                       </div>
                     ) : (
@@ -1796,12 +2026,12 @@ export default function StockManagementPage() {
 
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
-                                  {customer?.name || 'Walk-in Customer'}
+                                  {customer?.name || tx('Walk-in Customer')}
                                 </p>
 
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                  {formatDate(sale.sale_date)} ·{' '}
-                                  {sale.payment_status}
+                                  {formatDate(sale.sale_date, dateLocale)} ·{' '}
+                                  {tx(sale.payment_status.toLowerCase())}
                                 </p>
                               </div>
 
@@ -1827,11 +2057,11 @@ export default function StockManagementPage() {
                     />
 
                     <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                      Search for the sale
+                      {tx('Search for the sale')}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-400">
-                      Search by customer, date, amount, or payment status.
+                      {tx('Search by customer, date, amount, or payment status.')}
                     </p>
                   </div>
                 )}
@@ -1847,12 +2077,12 @@ export default function StockManagementPage() {
                     <p className="font-bold text-slate-900 dark:text-white">
                       {selectedSale.customer_id
                         ? customerMap.get(selectedSale.customer_id)?.name ||
-                          'Customer'
-                        : 'Walk-in Customer'}
+                          tx('Customer')
+                        : tx('Walk-in Customer')}
                     </p>
 
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {formatDate(selectedSale.sale_date)} ·{' '}
+                      {formatDate(selectedSale.sale_date, dateLocale)} ·{' '}
                       {formatMoney(Number(selectedSale.total_revenue) || 0)} RWF
                     </p>
                   </div>
@@ -1861,7 +2091,7 @@ export default function StockManagementPage() {
                     type="button"
                     onClick={clearSaleSelection}
                     className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-700 dark:hover:bg-slate-900 dark:hover:text-white"
-                    title="Change sale"
+                    title={tx('Change sale')}
                   >
                     <Icon name="close" className="h-4 w-4" />
                   </button>
@@ -1873,30 +2103,30 @@ export default function StockManagementPage() {
           {selectedSale && (
             <div className="rounded-2xl bg-blue-50 p-4 dark:bg-blue-950/30">
               <p className="text-xs font-bold uppercase tracking-wide text-blue-500">
-                Original Sale
+                {tx('Original Sale')}
               </p>
 
               <div className="mt-2 grid gap-3 sm:grid-cols-3">
                 <MiniInfo
-                  label="Customer"
+                  label={tx('Customer')}
                   value={
                     selectedSale.customer_id
                       ? customerMap.get(selectedSale.customer_id)?.name ||
-                        'Customer'
-                      : 'Walk-in Customer'
+                        tx('Customer')
+                      : tx('Walk-in Customer')
                   }
                 />
 
                 <MiniInfo
-                  label="Revenue"
+                  label={tx('Revenue')}
                   value={`${formatMoney(
                     Number(selectedSale.total_revenue) || 0
                   )} RWF`}
                 />
 
                 <MiniInfo
-                  label="Date"
-                  value={formatDate(selectedSale.sale_date)}
+                  label={tx('Date')}
+                  value={formatDate(selectedSale.sale_date, dateLocale)}
                 />
               </div>
             </div>
@@ -1906,11 +2136,11 @@ export default function StockManagementPage() {
             <div>
               <div className="mb-3">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Sold Items
+                  {tx('Sold Items')}
                 </h3>
 
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Select the exact batch and quantity being returned.
+                  {tx('Select the exact batch and quantity being returned.')}
                 </p>
               </div>
 
@@ -1934,16 +2164,16 @@ export default function StockManagementPage() {
                       <div className="flex items-center gap-3">
                         <ImageBox
                           path={type?.image_path || null}
-                          name={type?.name || 'Product Type'}
+                          name={type?.name || tx('Product Type')}
                         />
 
                         <div>
                           <p className="font-bold text-slate-900 dark:text-white">
-                            {type?.name || 'Product Type'}
+                            {type?.name || tx('Product Type')}
                           </p>
 
                           <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {product?.name || 'Product'} · Sold: {item.quantity}
+                            {product?.name || tx('Product')} · {tx('Sold')}: {item.quantity}
                           </p>
                         </div>
                       </div>
@@ -1985,12 +2215,11 @@ export default function StockManagementPage() {
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>
                                       <p className="text-sm font-bold text-slate-900 dark:text-white">
-                                        Batch {batch?.batch_number || 'Batch'}
+                                        {tx('Batch')} {batch?.batch_number || tx('Batch')}
                                       </p>
 
                                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Sold: {allocation.quantity} ·
-                                        Returnable: {returnable}
+                                        {tx('Sold')}: {allocation.quantity} · {tx('Returnable')}: {returnable}
                                       </p>
                                     </div>
 
@@ -1998,7 +2227,7 @@ export default function StockManagementPage() {
                                       {formatMoney(
                                         Number(allocation.unit_cost) || 0
                                       )}{' '}
-                                      RWF/unit
+                                      RWF/{tx('unit')}
                                     </span>
                                   </div>
 
@@ -2006,7 +2235,7 @@ export default function StockManagementPage() {
                                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                       <div>
                                         <label className="mb-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                          Return Quantity
+                                          {tx('Return Quantity')}
                                         </label>
 
                                         <input
@@ -2037,7 +2266,7 @@ export default function StockManagementPage() {
 
                                       <div>
                                         <label className="mb-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                          Condition
+                                          {tx('Condition')}
                                         </label>
 
                                         <select
@@ -2057,11 +2286,11 @@ export default function StockManagementPage() {
                                           className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                         >
                                           <option value="resellable">
-                                            Resellable
+                                            {tx('Resellable')}
                                           </option>
 
                                           <option value="damaged">
-                                            Damaged
+                                            {tx('Damaged')}
                                           </option>
                                         </select>
                                       </div>
@@ -2075,7 +2304,7 @@ export default function StockManagementPage() {
 
                         {itemAllocations.length === 0 && (
                           <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-                            No batch allocation was found for this sale item.
+                            {tx('No batch allocation was found for this sale item.')}
                           </p>
                         )}
                       </div>
@@ -2085,7 +2314,7 @@ export default function StockManagementPage() {
 
                 {selectedSaleItems.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                    No sale items found.
+                    {tx('No sale items found.')}
                   </div>
                 )}
               </div>
@@ -2094,14 +2323,14 @@ export default function StockManagementPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Return Reason
+              {tx('Return Reason')}
             </label>
 
             <textarea
               value={returnReason}
               onChange={(event) => setReturnReason(event.target.value)}
               rows={3}
-              placeholder="Why is the customer returning these items?"
+              placeholder={tx('Why is the customer returning these items?')}
               required
               className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             />
@@ -2113,8 +2342,8 @@ export default function StockManagementPage() {
       <Modal
         open={selectedAction === 'recover'}
         onClose={closeAction}
-        title="Recover Lost Stock"
-        description="Search for a previously lost stock record and recover it back to its original batch."
+        title={tx('Recover Lost Stock')}
+        description={tx('Search for a previously lost stock record and recover it back to its original batch.')}
         footer={
           <div className="flex justify-end gap-3">
             <button
@@ -2123,7 +2352,7 @@ export default function StockManagementPage() {
               disabled={saving}
               className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
-              Cancel
+              {tx('Cancel')}
             </button>
 
             <button
@@ -2136,7 +2365,7 @@ export default function StockManagementPage() {
                 <Icon name="refresh" className="h-4 w-4 animate-spin" />
               )}
 
-              {saving ? 'Recovering...' : 'Recover Stock'}
+              {saving ? tx('Recovering...') : tx('Recover Stock')}
             </button>
           </div>
         }
@@ -2154,15 +2383,14 @@ export default function StockManagementPage() {
               />
 
               <p className="text-sm leading-6 text-emerald-800 dark:text-emerald-200">
-                Recovered stock goes back to the original batch. The existing
-                recovery function will record the recovery and update inventory.
+                {tx('Recovered stock goes back to the original batch. The existing recovery function will record the recovery and update inventory.')}
               </p>
             </div>
           </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Lost Stock Record
+              {tx('Lost Stock Record')}
             </label>
 
             {!selectedLoss ? (
@@ -2170,7 +2398,7 @@ export default function StockManagementPage() {
                 <SearchBox
                   value={lossSearch}
                   onChange={setLossSearch}
-                  placeholder="Search product, type, batch..."
+                  placeholder={tx('Search product, type, batch...')}
                   accent="emerald"
                 />
 
@@ -2184,7 +2412,7 @@ export default function StockManagementPage() {
                         />
 
                         <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          No recoverable losses found
+                          {tx('No recoverable losses found')}
                         </p>
                       </div>
                     ) : (
@@ -2207,18 +2435,18 @@ export default function StockManagementPage() {
                             >
                               <ImageBox
                                 path={type?.image_path || null}
-                                name={type?.name || 'Product Type'}
+                                name={type?.name || tx('Product Type')}
                                 size="sm"
                               />
 
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
-                                  {type?.name || 'Product Type'}
+                                  {type?.name || tx('Product Type')}
                                 </p>
 
                                 <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                                  {product?.name || 'Product'} · Batch{' '}
-                                  {batch?.batch_number || 'Batch'}
+                                  {product?.name || tx('Product')} · {tx('Batch')}{' '}
+                                  {batch?.batch_number || tx('Batch')}
                                 </p>
                               </div>
 
@@ -2228,7 +2456,7 @@ export default function StockManagementPage() {
                                 </p>
 
                                 <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                  recoverable
+                                  {tx('recoverable')}
                                 </p>
                               </div>
                             </button>
@@ -2247,11 +2475,11 @@ export default function StockManagementPage() {
                     />
 
                     <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                      Search for lost stock
+                      {tx('Search for lost stock')}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-400">
-                      Only losses with unresolved quantities are shown.
+                      {tx('Only losses with unresolved quantities are shown.')}
                     </p>
                   </div>
                 )}
@@ -2266,7 +2494,7 @@ export default function StockManagementPage() {
                     }
                     name={
                       productTypeMap.get(selectedLoss.product_type_id)?.name ||
-                      'Product Type'
+                      tx('Product Type')
                     }
                     size="lg"
                   />
@@ -2274,21 +2502,21 @@ export default function StockManagementPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-bold text-slate-900 dark:text-white">
                       {productTypeMap.get(selectedLoss.product_type_id)?.name ||
-                        'Product Type'}
+                        tx('Product Type')}
                     </p>
 
                     <p className="truncate text-xs text-slate-500 dark:text-slate-400">
                       {productMap.get(
                         productTypeMap.get(selectedLoss.product_type_id)
                           ?.product_id || ''
-                      )?.name || 'Product'}{' '}
-                      · Batch{' '}
+                      )?.name || tx('Product')}{' '}
+                      · {tx('Batch')}{' '}
                       {batchMap.get(selectedLoss.batch_id)?.batch_number ||
-                        'Batch'}
+                        tx('Batch')}
                     </p>
 
                     <p className="mt-1 text-xs font-bold text-emerald-600 dark:text-emerald-300">
-                      {selectedLoss.unresolvedQuantity} units recoverable
+                      {selectedLoss.unresolvedQuantity} {tx('units recoverable')}
                     </p>
                   </div>
 
@@ -2296,7 +2524,7 @@ export default function StockManagementPage() {
                     type="button"
                     onClick={clearLossSelection}
                     className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-700 dark:hover:bg-slate-900 dark:hover:text-white"
-                    title="Change selection"
+                    title={tx('Change selection')}
                   >
                     <Icon name="close" className="h-4 w-4" />
                   </button>
@@ -2308,18 +2536,18 @@ export default function StockManagementPage() {
           {selectedLoss && (
             <div className="grid gap-3 sm:grid-cols-3">
               <MiniInfo
-                label="Originally Lost"
-                value={`${selectedLoss.quantity} units`}
+                label={tx('Originally Lost')}
+                value={`${selectedLoss.quantity} ${tx('units')}`}
               />
 
               <MiniInfo
-                label="Can Recover"
-                value={`${selectedLoss.unresolvedQuantity} units`}
+                label={tx('Can Recover')}
+                value={`${selectedLoss.unresolvedQuantity} ${tx('units')}`}
               />
 
               <MiniInfo
-                label="Recorded"
-                value={formatDate(selectedLoss.created_at)}
+                label={tx('Recorded')}
+                value={formatDate(selectedLoss.created_at, dateLocale)}
               />
             </div>
           )}
@@ -2327,7 +2555,7 @@ export default function StockManagementPage() {
           {selectedLoss && (
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Original Reason
+                {tx('Original Reason')}
               </p>
 
               <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
@@ -2338,7 +2566,7 @@ export default function StockManagementPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Recovery Quantity
+              {tx('Recovery Quantity')}
             </label>
 
             <input
@@ -2348,7 +2576,7 @@ export default function StockManagementPage() {
               step="1"
               value={recoveryQuantity}
               onChange={(event) => setRecoveryQuantity(event.target.value)}
-              placeholder="Enter quantity recovered"
+              placeholder={tx('Enter quantity recovered')}
               required
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             />
@@ -2356,14 +2584,14 @@ export default function StockManagementPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Recovery Reason
+              {tx('Recovery Reason')}
             </label>
 
             <textarea
               value={recoveryReason}
               onChange={(event) => setRecoveryReason(event.target.value)}
               rows={3}
-              placeholder="Explain why the lost stock was recovered."
+              placeholder={tx('Explain why the lost stock was recovered.')}
               required
               className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             />
@@ -2381,7 +2609,7 @@ function OverviewCard({
   description,
   valueClass,
 }: {
-  icon: 'package' | 'warning' | 'damage' | 'money';
+  icon: 'package' | 'warning' | 'damage' | 'money' | 'loss' | 'return';
   label: string;
   value: string;
   description: string;

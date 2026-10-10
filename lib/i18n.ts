@@ -71,6 +71,10 @@ export const translations = {
 
     addProduct: 'Add Product',
     addProductType: 'Add Product Type',
+    
+catalogManagement: 'Catalog Management',
+catalogManagementDescription:
+  'Manage products and their exact sellable types / kinds.',
 
     product: 'Product',
     productTypes: 'Product Types',
@@ -616,8 +620,11 @@ export const translations = {
     customerCreatedSuccessfully: 'Umukiriya yakozwe neza.',
 
     selectCustomer: 'Hitamo umukiriya',
-
-    // Common validation
+ 
+catalogManagement: 'Imicungire y’ibicuruzwa',
+catalogManagementDescription:
+  'Cunga ibicuruzwa n’ubwoko bwabyo bwihariye bugurishwa.',
+ // Common validation
     required: 'Birakenewe',
     invalidAmount: 'Andika amafaranga yemewe.',
     invalidQuantity: 'Andika umubare wemewe.',
