@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
 import Modal from '@/components/modal';
+import { useAppPreferences } from '@/app/providers';
 
 type AuditLog = {
   id: string;
@@ -23,7 +24,216 @@ type ReadableField = {
   value: string;
 };
 
-function formatDate(value: string) {
+/* ------------------------------------------------------------------ */
+/* Translation (English / Kinyarwanda) - uses the existing app language */
+/* ------------------------------------------------------------------ */
+
+const HISTORY_TRANSLATIONS: Record<string, string> = {
+  'Business Activity': 'Ibikorwa by’ubucuruzi',
+  History: 'Amateka',
+  'A complete activity trail for sales, purchases, payments, stock changes, returns, losses, recoveries and other important business actions.':
+    'Inyandiko yuzuye y’ibikorwa: igurisha, ibyaguzwe, kwishyura, impinduka mu bubiko, ibyagarutse, igihombo, ibyagaruwe n’ibindi bikorwa by’ingenzi by’ubucuruzi.',
+  'total records': 'inyandiko zose',
+  shown: 'ziragaragara',
+  Print: 'Kwandika',
+  'Export CSV': 'Gusohora CSV',
+  'Total Activities': 'Ibikorwa byose',
+  'Business Actions': 'Ibikorwa by’ubucuruzi',
+  'Updates & Payments': 'Impinduka n’Ubwishyu',
+  'Other / Deleted': 'Ibindi / Ibyasibwe',
+  'Records in the current view': 'Inyandiko ziri kugaragara',
+  'Sales, purchases and new records': 'Igurisha, ibyaguzwe n’inyandiko nshya',
+  'Edits and payments recorded': 'Impinduka n’ubwishyu byanditswe',
+  'Deletions and other actions': 'Ibyasibwe n’ibindi bikorwa',
+  'Find History': 'Shakisha Amateka',
+  'Search and filter your business activity.':
+    'Shakisha kandi uhitemo ibikorwa by’ubucuruzi bwawe.',
+  'Filters active': 'Ayungurura arakoreshwa',
+  Search: 'Gushakisha',
+  'Search action, email, ID or reason...':
+    'Shakisha igikorwa, imeri, ID cyangwa impamvu...',
+  Action: 'Igikorwa',
+  Entity: 'Ikintu',
+  'All actions': 'Ibikorwa byose',
+  'All entities': 'Ibintu byose',
+  'Clear Filters': 'Siba Ayungurura',
+  From: 'Kuva',
+  To: 'Kugeza',
+  'Unable to load history': 'Ntibishobotse gufungura amateka',
+  'Activity History': 'Amateka y’Ibikorwa',
+  Showing: 'Hagaragajwe',
+  of: 'kuri',
+  activities: 'ibikorwa',
+  'Refreshing...': 'Birimo kuvugururwa...',
+  Refresh: 'Vugurura',
+  'Loading activity history...': 'Birimo gufungura amateka y’ibikorwa...',
+  'No history found': 'Nta mateka yabonetse',
+  'There are no activities matching your current search and filters.':
+    'Nta bikorwa bihuye n’ibyo washakishije n’ayungurura wahisemo.',
+  'Date & Time': 'Itariki n’Isaha',
+  User: 'Ukoresha',
+  Reason: 'Impamvu',
+  Details: 'Ibisobanuro',
+  'View Details': 'Reba Ibisobanuro',
+  'History Details': 'Ibisobanuro by’Amateka',
+  Activity: 'Igikorwa',
+  'User Email': 'Imeri y’Ukoresha',
+  'No reason provided.': 'Nta mpamvu yatanzwe.',
+  Before: 'Mbere',
+  After: 'Nyuma',
+  'Values before this activity': 'Agaciro mbere y’iki gikorwa',
+  'Values after this activity': 'Agaciro nyuma y’iki gikorwa',
+  'No previous data recorded.': 'Nta makuru yabanje yanditswe.',
+  'No updated data recorded.': 'Nta makuru mashya yanditswe.',
+  fields: 'ibisobanuro',
+  Close: 'Funga',
+  System: 'Sisitemu',
+  'Unknown Email': 'Imeri itazwi',
+  Yes: 'Yego',
+  No: 'Oya',
+};
+
+const HISTORY_WORDS: Record<string, string> = {
+  create: 'Gushyiraho',
+  created: 'Byashyizweho',
+  add: 'Kongeramo',
+  added: 'Byongeweho',
+  update: 'Kuvugurura',
+  updated: 'Byavuguruwe',
+  edit: 'Guhindura',
+  edited: 'Byahinduwe',
+  delete: 'Gusiba',
+  deleted: 'Byasibwe',
+  record: 'Kwandika',
+  recorded: 'Byanditswe',
+  correct: 'Gukosora',
+  corrected: 'Byakosowe',
+  adjust: 'Gutunganya',
+  adjustment: 'Gutunganya',
+  return: 'Gusubiza',
+  returned: 'Byagarutse',
+  recover: 'Kugarura',
+  recovered: 'Byagaruwe',
+  recovery: 'Kugarura',
+  loss: 'Igihombo',
+  damaged: 'Byangiritse',
+  sale: 'Igurisha',
+  sales: 'Igurisha',
+  purchase: 'Kugura',
+  purchases: 'Ibyaguzwe',
+  payment: 'Ubwishyu',
+  payments: 'Ubwishyu',
+  stock: 'Ububiko',
+  product: 'Igicuruzwa',
+  products: 'Ibicuruzwa',
+  item: 'Igicuruzwa',
+  items: 'Ibicuruzwa',
+  batch: 'Icyiciro',
+  batches: 'Ibyiciro',
+  customer: 'Umukiriya',
+  customers: 'Abakiriya',
+  supplier: 'Utanga ibicuruzwa',
+  suppliers: 'Abatanga ibicuruzwa',
+  debt: 'Ideni',
+  debts: 'Amadeni',
+  expense: 'Igiciro',
+  expenses: 'Ibiciro',
+  inventory: 'Ibarura',
+  total: 'Byose',
+  cost: 'Igiciro',
+  revenue: 'Amafaranga yinjiye',
+  profit: 'Inyungu',
+  amount: 'Umubare',
+  paid: 'Yishyuwe',
+  due: 'Asigaye',
+  new: 'Gishya',
+  credit: 'Inguzanyo',
+  selling: 'Kugurisha',
+  price: 'Igiciro',
+  unit: 'Igice',
+  quantity: 'Ingano',
+  remaining: 'Asigaye',
+  original: 'Iya mbere',
+  previous: 'Iyabanje',
+  name: 'Izina',
+  date: 'Itariki',
+  status: 'Imiterere',
+  notes: 'Inyandiko',
+  note: 'Inyandiko',
+  phone: 'Telefoni',
+  email: 'Imeri',
+  address: 'Aho aherereye',
+  reason: 'Impamvu',
+  method: 'Uburyo',
+  type: 'Ubwoko',
+  category: 'Icyiciro',
+  balance: 'Isigaye',
+  at: 'ku',
+};
+
+const RW_MONTHS = [
+  'Mut',
+  'Gas',
+  'Wer',
+  'Mat',
+  'Gic',
+  'Kam',
+  'Nya',
+  'Kan',
+  'Nze',
+  'Ukw',
+  'Ugu',
+  'Uku',
+];
+
+function translateText(text: string, isRw: boolean) {
+  if (!isRw) {
+    return text;
+  }
+
+  return Object.prototype.hasOwnProperty.call(HISTORY_TRANSLATIONS, text)
+    ? HISTORY_TRANSLATIONS[text]
+    : text;
+}
+
+function translateWords(text: string, isRw: boolean) {
+  if (!isRw) {
+    return text;
+  }
+
+  return text
+    .split(' ')
+    .map((word) => {
+      const lower = word.toLowerCase();
+
+      if (!Object.prototype.hasOwnProperty.call(HISTORY_WORDS, lower)) {
+        return word;
+      }
+
+      return HISTORY_WORDS[lower];
+    })
+    .join(' ');
+}
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+function formatDate(value: string, isRw = false) {
+  if (isRw) {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    const pad = (number: number) => String(number).padStart(2, '0');
+
+    return `${pad(date.getDate())} ${RW_MONTHS[date.getMonth()]} ${date.getFullYear()}, ${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}`;
+  }
+
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -65,7 +275,7 @@ function formatNumber(value: unknown) {
   return number.toLocaleString('en-US');
 }
 
-function formatValue(value: unknown, key?: string) {
+function formatValue(value: unknown, key?: string, isRw = false) {
   if (value === null || value === undefined || value === '') {
     return '—';
   }
@@ -100,7 +310,7 @@ function formatValue(value: unknown, key?: string) {
   }
 
   if (typeof value === 'boolean') {
-    return value ? 'Yes' : 'No';
+    return value ? translateText('Yes', isRw) : translateText('No', isRw);
   }
 
   if (typeof value === 'object') {
@@ -186,17 +396,39 @@ function getObject(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function getReadableFields(value: unknown): ReadableField[] {
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/* Technical identifiers (id, customer_id, product_type_id, UUID values...)
+   are hidden from the details popup so only business information is shown. */
+function isTechnicalId(key: string, value: unknown) {
+  const lower = key.toLowerCase();
+
+  if (
+    lower === 'id' ||
+    lower === 'uuid' ||
+    lower.endsWith('_id') ||
+    lower.endsWith('_uuid')
+  ) {
+    return true;
+  }
+
+  return typeof value === 'string' && UUID_PATTERN.test(value.trim());
+}
+
+function getReadableFields(value: unknown, isRw = false): ReadableField[] {
   const object = getObject(value);
 
   if (!object) {
     return [];
   }
 
-  return Object.entries(object).map(([key, item]) => ({
-    label: prettifyKey(key),
-    value: formatValue(item, key),
-  }));
+  return Object.entries(object)
+    .filter(([key, item]) => !isTechnicalId(key, item))
+    .map(([key, item]) => ({
+      label: translateWords(prettifyKey(key), isRw),
+      value: formatValue(item, key, isRw),
+    }));
 }
 
 function getUserEmail(log: AuditLog) {
@@ -215,7 +447,17 @@ function escapeCsv(value: unknown) {
   return `"${String(value ?? '').replace(/"/g, '""')}"`;
 }
 
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
 export default function HistoryPage() {
+  const { t } = useAppPreferences();
+
+  const isRw = t('inventory').trim().toLowerCase() !== 'inventory';
+
+  const tx = (text: string) => translateText(text, isRw);
+
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -369,6 +611,14 @@ export default function HistoryPage() {
     };
   }, [filteredLogs]);
 
+  const hasActiveFilters = Boolean(
+    search ||
+      actionFilter !== 'all' ||
+      entityFilter !== 'all' ||
+      startDate ||
+      endDate
+  );
+
   function clearFilters() {
     setSearch('');
     setActionFilter('all');
@@ -435,21 +685,32 @@ export default function HistoryPage() {
   const selectedBeforeFields =
     selectedLog
       ? getReadableFields(
-          selectedLog.before_data
+          selectedLog.before_data,
+          isRw
         )
       : [];
 
   const selectedAfterFields =
     selectedLog
       ? getReadableFields(
-          selectedLog.after_data
+          selectedLog.after_data,
+          isRw
         )
       : [];
 
   const selectedUserEmail =
     selectedLog
-      ? getUserEmail(selectedLog)
+      ? tx(getUserEmail(selectedLog))
       : '';
+
+  const labelClass =
+    'mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400';
+
+  const fieldClass =
+    'w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white';
+
+  const thClass =
+    'whitespace-nowrap px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400';
 
   return (
     <>
@@ -457,7 +718,7 @@ export default function HistoryPage() {
         <div className="mx-auto max-w-7xl space-y-6">
 
           {/* HERO */}
-          <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl ring-1 ring-white/5">
             <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
             <div className="absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
 
@@ -467,27 +728,32 @@ export default function HistoryPage() {
                 <div className="max-w-3xl">
                   <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
                     <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                    Business Activity
+                    {tx('Business Activity')}
                   </div>
 
                   <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-                    History
+                    {tx('History')}
                   </h1>
 
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                    A complete activity trail for sales,
-                    purchases, payments, stock changes,
-                    returns, losses, recoveries and
-                    other important business actions.
+                    {tx(
+                      'A complete activity trail for sales, purchases, payments, stock changes, returns, losses, recoveries and other important business actions.'
+                    )}
                   </p>
 
-                  <div className="mt-5 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-400">
-                    <span className="rounded-full bg-white/5 px-3 py-1.5">
-                      {logs.length.toLocaleString()} total records
+                  <div className="mt-5 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-300">
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 tabular-nums">
+                      <span className="font-bold text-white">
+                        {logs.length.toLocaleString()}
+                      </span>{' '}
+                      {tx('total records')}
                     </span>
 
-                    <span className="rounded-full bg-white/5 px-3 py-1.5">
-                      {summary.total.toLocaleString()} shown
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 tabular-nums">
+                      <span className="font-bold text-white">
+                        {summary.total.toLocaleString()}
+                      </span>{' '}
+                      {tx('shown')}
                     </span>
                   </div>
                 </div>
@@ -496,17 +762,17 @@ export default function HistoryPage() {
                   <button
                     type="button"
                     onClick={handlePrint}
-                    className="rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/15"
+                    className="rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
-                    Print
+                    {tx('Print')}
                   </button>
 
                   <button
                     type="button"
                     onClick={handleExport}
-                    className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-slate-100"
+                    className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 shadow-sm transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
-                    Export CSV
+                    {tx('Export CSV')}
                   </button>
                 </div>
               </div>
@@ -516,27 +782,31 @@ export default function HistoryPage() {
           {/* SUMMARY */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
-              label="Total Activities"
+              label={tx('Total Activities')}
+              caption={tx('Records in the current view')}
               value={summary.total}
               icon="◷"
             />
 
             <SummaryCard
-              label="Business Actions"
+              label={tx('Business Actions')}
+              caption={tx('Sales, purchases and new records')}
               value={summary.creates}
               icon="+"
               accent="emerald"
             />
 
             <SummaryCard
-              label="Updates & Payments"
+              label={tx('Updates & Payments')}
+              caption={tx('Edits and payments recorded')}
               value={summary.updates}
               icon="↻"
               accent="indigo"
             />
 
             <SummaryCard
-              label="Other / Deleted"
+              label={tx('Other / Deleted')}
+              caption={tx('Deletions and other actions')}
               value={
                 summary.deletes +
                 summary.other
@@ -552,21 +822,18 @@ export default function HistoryPage() {
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-bold text-slate-900 dark:text-white">
-                    Find History
+                    {tx('Find History')}
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    Search and filter your business activity.
+                    {tx('Search and filter your business activity.')}
                   </p>
                 </div>
 
-                {(search ||
-                  actionFilter !== 'all' ||
-                  entityFilter !== 'all' ||
-                  startDate ||
-                  endDate) && (
-                  <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                    Filters active
+                {hasActiveFilters && (
+                  <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                    {tx('Filters active')}
                   </span>
                 )}
               </div>
@@ -576,44 +843,57 @@ export default function HistoryPage() {
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
 
                 <div className="xl:col-span-2">
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Search
+                  <label
+                    htmlFor="history-search"
+                    className={labelClass}
+                  >
+                    {tx('Search')}
                   </label>
 
                   <div className="relative">
-                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    >
                       ⌕
                     </span>
 
                     <input
+                      id="history-search"
                       value={search}
                       onChange={(event) =>
                         setSearch(
                           event.target.value
                         )
                       }
-                      placeholder="Search action, email, ID or reason..."
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      placeholder={tx(
+                        'Search action, email, ID or reason...'
+                      )}
+                      className={`${fieldClass} pl-10 pr-3.5`}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Action
+                  <label
+                    htmlFor="history-action"
+                    className={labelClass}
+                  >
+                    {tx('Action')}
                   </label>
 
                   <select
+                    id="history-action"
                     value={actionFilter}
                     onChange={(event) =>
                       setActionFilter(
                         event.target.value
                       )
                     }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className={fieldClass}
                   >
                     <option value="all">
-                      All actions
+                      {tx('All actions')}
                     </option>
 
                     {actionOptions.map(
@@ -622,7 +902,10 @@ export default function HistoryPage() {
                           key={action}
                           value={action}
                         >
-                          {formatAction(action)}
+                          {translateWords(
+                            formatAction(action),
+                            isRw
+                          )}
                         </option>
                       )
                     )}
@@ -630,21 +913,25 @@ export default function HistoryPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Entity
+                  <label
+                    htmlFor="history-entity"
+                    className={labelClass}
+                  >
+                    {tx('Entity')}
                   </label>
 
                   <select
+                    id="history-entity"
                     value={entityFilter}
                     onChange={(event) =>
                       setEntityFilter(
                         event.target.value
                       )
                     }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className={fieldClass}
                   >
                     <option value="all">
-                      All entities
+                      {tx('All entities')}
                     </option>
 
                     {entityOptions.map(
@@ -653,7 +940,10 @@ export default function HistoryPage() {
                           key={entity}
                           value={entity}
                         >
-                          {formatEntity(entity)}
+                          {translateWords(
+                            formatEntity(entity),
+                            isRw
+                          )}
                         </option>
                       )
                     )}
@@ -664,20 +954,24 @@ export default function HistoryPage() {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
-                    Clear Filters
+                    {tx('Clear Filters')}
                   </button>
                 </div>
               </div>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    From
+                  <label
+                    htmlFor="history-from"
+                    className={labelClass}
+                  >
+                    {tx('From')}
                   </label>
 
                   <input
+                    id="history-from"
                     type="date"
                     value={startDate}
                     onChange={(event) =>
@@ -685,16 +979,20 @@ export default function HistoryPage() {
                         event.target.value
                       )
                     }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className={fieldClass}
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    To
+                  <label
+                    htmlFor="history-to"
+                    className={labelClass}
+                  >
+                    {tx('To')}
                   </label>
 
                   <input
+                    id="history-to"
                     type="date"
                     value={endDate}
                     onChange={(event) =>
@@ -702,7 +1000,7 @@ export default function HistoryPage() {
                         event.target.value
                       )
                     }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className={fieldClass}
                   />
                 </div>
               </div>
@@ -711,14 +1009,17 @@ export default function HistoryPage() {
 
           {/* ERROR */}
           {error && (
-            <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+            >
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-100 font-bold dark:bg-rose-900/40">
                 !
               </span>
 
               <div>
                 <div className="font-bold">
-                  Unable to load history
+                  {tx('Unable to load history')}
                 </div>
 
                 <div className="mt-0.5">
@@ -734,17 +1035,19 @@ export default function HistoryPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="font-bold text-slate-900 dark:text-white">
-                    Activity History
+                    {tx('Activity History')}
                   </h2>
 
-                  <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold tabular-nums text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
                     {filteredLogs.length}
                   </span>
                 </div>
 
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Showing {filteredLogs.length} of{' '}
-                  {logs.length} activities.
+                <p
+                  className="mt-1 text-sm tabular-nums text-slate-500 dark:text-slate-400"
+                  aria-live="polite"
+                >
+                  {`${tx('Showing')} ${filteredLogs.length} ${tx('of')} ${logs.length} ${tx('activities')}.`}
                 </p>
               </div>
 
@@ -752,11 +1055,11 @@ export default function HistoryPage() {
                 type="button"
                 onClick={loadHistory}
                 disabled={loading}
-                className="w-fit rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="w-fit rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 {loading
-                  ? 'Refreshing...'
-                  : '↻ Refresh'}
+                  ? tx('Refreshing...')
+                  : `↻ ${tx('Refresh')}`}
               </button>
             </div>
 
@@ -765,7 +1068,7 @@ export default function HistoryPage() {
                 <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600 dark:border-slate-700 dark:border-t-indigo-400" />
 
                 <p className="mt-4 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                  Loading activity history...
+                  {tx('Loading activity history...')}
                 </p>
               </div>
             ) : filteredLogs.length === 0 ? (
@@ -775,94 +1078,105 @@ export default function HistoryPage() {
                 </div>
 
                 <h3 className="mt-4 font-bold text-slate-900 dark:text-white">
-                  No history found
+                  {tx('No history found')}
                 </h3>
 
                 <p className="mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">
-                  There are no activities matching
-                  your current search and filters.
+                  {tx(
+                    'There are no activities matching your current search and filters.'
+                  )}
                 </p>
 
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700"
+                  className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
                 >
-                  Clear Filters
+                  {tx('Clear Filters')}
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-[1100px] w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-950/50">
-                      <th className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                        Date & Time
+              <div className="max-h-[70vh] overflow-auto">
+                <table className="w-full min-w-[1100px] border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-50 text-left dark:bg-slate-950">
+                      <th className={`${thClass} border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950`}>
+                        {tx('Date & Time')}
                       </th>
 
-                      <th className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                        Action
+                      <th className={`${thClass} border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950`}>
+                        {tx('Action')}
                       </th>
 
-                      <th className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                        Entity
+                      <th className={`${thClass} border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950`}>
+                        {tx('Entity')}
                       </th>
 
-                      <th className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                        User
+                      <th className={`${thClass} border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950`}>
+                        {tx('User')}
                       </th>
 
-                      <th className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                        Reason
+                      <th className={`${thClass} border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950`}>
+                        {tx('Reason')}
                       </th>
 
-                      <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
-                        Details
+                      <th className={`${thClass} border-b border-slate-200 bg-slate-50 text-right dark:border-slate-800 dark:bg-slate-950`}>
+                        {tx('Details')}
                       </th>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody>
                     {filteredLogs.map((log) => {
                       const userEmail =
-                        getUserEmail(log);
+                        tx(getUserEmail(log));
 
                       const theme =
                         getActionTheme(
                           log.action_type
                         );
 
+                      const cell =
+                        'border-b border-slate-100 px-5 py-4 dark:border-slate-800';
+
                       return (
                         <tr
                           key={log.id}
                           className="group transition hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                         >
-                          <td className="px-5 py-4">
-                            <div className="whitespace-nowrap text-sm font-semibold text-slate-800 dark:text-slate-100">
+                          <td className={cell}>
+                            <div className="whitespace-nowrap text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">
                               {formatDate(
-                                log.created_at
+                                log.created_at,
+                                isRw
                               )}
                             </div>
                           </td>
 
-                          <td className="px-5 py-4">
+                          <td className={cell}>
                             <span
-                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-bold ${theme.badge}`}
+                              className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1.5 text-xs font-bold ${theme.badge}`}
                             >
                               <span
                                 className={`h-1.5 w-1.5 rounded-full ${theme.dot}`}
                               />
 
-                              {formatAction(
-                                log.action_type
+                              {translateWords(
+                                formatAction(
+                                  log.action_type
+                                ),
+                                isRw
                               )}
                             </span>
                           </td>
 
-                          <td className="px-5 py-4">
+                          <td className={cell}>
                             <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                              {formatEntity(
-                                log.entity_type
+                              {translateWords(
+                                formatEntity(
+                                  log.entity_type
+                                ),
+                                isRw
                               )}
                             </div>
 
@@ -876,7 +1190,7 @@ export default function HistoryPage() {
                             )}
                           </td>
 
-                          <td className="px-5 py-4">
+                          <td className={cell}>
                             <div
                               className="max-w-[260px] truncate text-sm font-medium text-slate-700 dark:text-slate-200"
                               title={userEmail}
@@ -885,7 +1199,7 @@ export default function HistoryPage() {
                             </div>
                           </td>
 
-                          <td className="max-w-[280px] px-5 py-4">
+                          <td className={`${cell} max-w-[280px]`}>
                             <div
                               className="truncate text-sm text-slate-600 dark:text-slate-300"
                               title={
@@ -896,7 +1210,7 @@ export default function HistoryPage() {
                             </div>
                           </td>
 
-                          <td className="px-5 py-4 text-right">
+                          <td className={`${cell} text-right`}>
                             <button
                               type="button"
                               onClick={() =>
@@ -904,9 +1218,9 @@ export default function HistoryPage() {
                                   log
                                 )
                               }
-                              className="rounded-xl bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/70"
+                              className="whitespace-nowrap rounded-xl bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/70"
                             >
-                              View Details
+                              {tx('View Details')}
                             </button>
                           </td>
                         </tr>
@@ -924,13 +1238,13 @@ export default function HistoryPage() {
       <Modal
         open={Boolean(selectedLog)}
         onClose={() => setSelectedLog(null)}
-        title="History Details"
+        title={tx('History Details')}
       >
         {selectedLog && (
           <div className="space-y-5">
 
             {/* ICONIC ACTIVITY HEADER */}
-            <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-5 text-white shadow-lg">
+            <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-5 text-white shadow-lg ring-1 ring-white/5">
               <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-indigo-500/10 blur-2xl" />
 
               <div className="relative">
@@ -938,12 +1252,15 @@ export default function HistoryPage() {
                   <div>
                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
                       <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                      Activity
+                      {tx('Activity')}
                     </div>
 
                     <div className="mt-2 text-2xl font-black">
-                      {formatAction(
-                        selectedLog.action_type
+                      {translateWords(
+                        formatAction(
+                          selectedLog.action_type
+                        ),
+                        isRw
                       )}
                     </div>
                   </div>
@@ -953,23 +1270,27 @@ export default function HistoryPage() {
                       selectedLog.action_type
                     ).badge}`}
                   >
-                    {formatEntity(
-                      selectedLog.entity_type
+                    {translateWords(
+                      formatEntity(
+                        selectedLog.entity_type
+                      ),
+                      isRw
                     )}
                   </span>
                 </div>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   <DetailItem
-                    label="Date & Time"
+                    label={tx('Date & Time')}
                     value={formatDate(
-                      selectedLog.created_at
+                      selectedLog.created_at,
+                      isRw
                     )}
                     dark
                   />
 
                   <DetailItem
-                    label="User Email"
+                    label={tx('User Email')}
                     value={selectedUserEmail}
                     dark
                   />
@@ -983,34 +1304,36 @@ export default function HistoryPage() {
                 <span className="h-2 w-2 rounded-full bg-indigo-500" />
 
                 <div className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Reason
+                  {tx('Reason')}
                 </div>
               </div>
 
               <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 {selectedLog.reason ||
-                  'No reason provided.'}
+                  tx('No reason provided.')}
               </div>
             </div>
 
             {/* BEFORE / AFTER */}
             <div className="grid gap-5 lg:grid-cols-2">
               <DataCard
-                title="Before"
-                subtitle="Values before this activity"
+                title={tx('Before')}
+                subtitle={tx('Values before this activity')}
                 fields={
                   selectedBeforeFields
                 }
-                emptyText="No previous data recorded."
+                fieldsLabel={tx('fields')}
+                emptyText={tx('No previous data recorded.')}
               />
 
               <DataCard
-                title="After"
-                subtitle="Values after this activity"
+                title={tx('After')}
+                subtitle={tx('Values after this activity')}
                 fields={
                   selectedAfterFields
                 }
-                emptyText="No updated data recorded."
+                fieldsLabel={tx('fields')}
+                emptyText={tx('No updated data recorded.')}
                 after
               />
             </div>
@@ -1022,9 +1345,9 @@ export default function HistoryPage() {
                 onClick={() =>
                   setSelectedLog(null)
                 }
-                className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
               >
-                Close
+                {tx('Close')}
               </button>
             </div>
           </div>
@@ -1068,11 +1391,13 @@ export default function HistoryPage() {
 
 function SummaryCard({
   label,
+  caption,
   value,
   icon,
   accent = 'slate',
 }: {
   label: string;
+  caption?: string;
   value: number;
   icon: string;
   accent?: 'slate' | 'emerald' | 'indigo' | 'rose';
@@ -1091,17 +1416,24 @@ function SummaryCard({
   return (
     <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-slate-600 dark:text-slate-300">
             {label}
           </div>
 
-          <div className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+          <div className="mt-2 text-3xl font-black tabular-nums tracking-tight text-slate-900 dark:text-white">
             {value.toLocaleString()}
           </div>
+
+          {caption && (
+            <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+              {caption}
+            </div>
+          )}
         </div>
 
         <div
+          aria-hidden="true"
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg font-black ${accentClasses[accent]}`}
         >
           {icon}
@@ -1155,12 +1487,14 @@ function DataCard({
   title,
   subtitle,
   fields,
+  fieldsLabel,
   emptyText,
   after = false,
 }: {
   title: string;
   subtitle: string;
   fields: ReadableField[];
+  fieldsLabel: string;
   emptyText: string;
   after?: boolean;
 }) {
@@ -1185,13 +1519,13 @@ function DataCard({
           </div>
 
           <span
-            className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+            className={`rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums ${
               after
                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
                 : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
             }`}
           >
-            {fields.length} fields
+            {fields.length} {fieldsLabel}
           </span>
         </div>
       </div>
@@ -1205,13 +1539,13 @@ function DataCard({
           {fields.map((field) => (
             <div
               key={`${field.label}-${field.value}`}
-              className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-5"
+              className="flex flex-col gap-1 px-4 py-3 transition hover:bg-slate-50/70 dark:hover:bg-slate-800/30 sm:flex-row sm:items-center sm:justify-between sm:gap-5"
             >
               <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {field.label}
               </div>
 
-              <div className="break-all text-sm font-semibold text-slate-800 dark:text-slate-100 sm:text-right">
+              <div className="break-all text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100 sm:text-right">
                 {field.value}
               </div>
             </div>

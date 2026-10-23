@@ -1,12 +1,18 @@
 'use client'
 
 import {
+  Children,
+  cloneElement,
+  isValidElement,
   FormEvent,
   useEffect,
   useMemo,
   useState,
 } from 'react'
 
+import type { ReactElement, ReactNode } from 'react'
+
+import { useAppPreferences } from '@/app/providers'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/modal'
 
@@ -168,6 +174,298 @@ function getDateTimeLocalFromDate(value: string) {
   )
 
   return localDate.toISOString().slice(0, 16)
+}
+
+const SALES_TRANSLATIONS: Record<string, string> = {
+  'Customer name is required.': 'Izina ry’umukiriya rirakenewe.',
+  'Customer created successfully.': 'Umukiriya yanditswe neza.',
+  'Please select a customer.': 'Hitamo umukiriya.',
+  'Please add at least one valid sale item.': 'Ongeraho nibura igicuruzwa kimwe cyemewe.',
+  'Initial payment cannot be negative.': 'Ubwishyu bwa mbere ntibushobora kuba munsi ya zeru.',
+  'Initial payment cannot exceed the sale total.': 'Ubwishyu bwa mbere ntibushobora kurenga igiteranyo cy’igurisha.',
+  'No sale selected.': 'Nta gurisha ryatoranyijwe.',
+  'Payment amount must be greater than zero.': 'Amafaranga yishyuwe agomba kuba arenze zeru.',
+  'Payment was recorded, but the page could not refresh.': 'Ubwishyu bwanditswe, ariko paji ntiyashoboye kwivugurura.',
+  'No payment selected.': 'Nta bwishyu bwatoranyijwe.',
+  'Corrected payment amount must be greater than zero.': 'Amafaranga y’ubwishyu yakosowe agomba kuba arenze zeru.',
+  'Payment date is required.': 'Itariki y’ubwishyu irakenewe.',
+  'Payment was corrected, but the page could not refresh.': 'Ubwishyu bwakosowe, ariko paji ntiyashoboye kwivugurura.',
+  'Unknown product': 'Igicuruzwa kitazwi',
+  'Walk-in Customer': 'Umukiriya uje mu iduka',
+  'Unknown customer': 'Umukiriya utazwi',
+  'Unknown type': 'Ubwoko butazwi',
+  'Unknown': 'Ntizwi',
+  'Initial payment at sale creation': 'Ubwishyu bwa mbere igihe igurisha ryandikwaga',
+  'Sales Management': 'Imicungire y’ibyagurishijwe',
+  'Sales': 'Ibyagurishijwe',
+  'Record sales, track exact FIFO costs, monitor profit, payments and customer balances.': 'Andika ibyagurishijwe, ukurikirane ibiciro nyakuri bya FIFO, inyungu, ubwishyu n’imyenda y’abakiriya.',
+  'Create Sale': 'Andika igurisha',
+  'Something went wrong': 'Habaye ikibazo',
+  'Success': 'Byagenze neza',
+  'Total Sales': 'Igiteranyo cy’ibyagurishijwe',
+  'Recorded transactions': 'Ibikorwa byanditswe',
+  'Total Revenue': 'Amafaranga yose yinjiye',
+  'Customer sales value': 'Agaciro k’ibyagurishijwe ku bakiriya',
+  'Total Profit': 'Inyungu yose',
+  'Profit after FIFO cost': 'Inyungu nyuma y’igiciro cya FIFO',
+  'Amount Due': 'Umwenda usigaye',
+  'Outstanding customer balance': 'Umwenda usigaye ku bakiriya',
+  'Sales History': 'Amateka y’ibyagurishijwe',
+  'All recorded sales and payment status.': 'Ibyagurishijwe byose byanditswe n’imiterere y’ubwishyu.',
+  'sale': 'ibyagurishijwe',
+  's': '',
+  'Loading sales...': 'Turimo gupakira ibyagurishijwe...',
+  'No sales yet': 'Nta byagurishijwe biraba',
+  'Create your first sale to start tracking revenue, cost, profit and payments.': 'Andika igurisha ryawe rya mbere kugira ngo utangire gukurikirana amafaranga yinjiye, ibiciro, inyungu n’ubwishyu.',
+  'Create First Sale': 'Andika igurisha rya mbere',
+  'Sale': 'Igurisha',
+  'Customer': 'Umukiriya',
+  'Sale Date': 'Itariki y’igurisha',
+  'Revenue': 'Amafaranga yinjiye',
+  'Cost': 'Igiciro',
+  'Profit': 'Inyungu',
+  'Paid': 'Yishyuwe',
+  'Due': 'Umwenda usigaye',
+  'Status': 'Imiterere',
+  'Action': 'Igikorwa',
+  'Payment': 'Ubwishyu',
+  'Details': 'Ibisobanuro birambuye',
+  'paid': 'Yishyuwe',
+  'partial': 'Yishyuwe igice',
+  'unpaid': 'Ntiyishyuwe',
+  'Build the sale, choose the customer, and enter the selling prices.': 'Tegura igurisha, uhitemo umukiriya kandi wandike ibiciro byo kugurisha.',
+  'Choose who is buying these items.': 'Hitamo ugura ibi bicuruzwa.',
+  'Add Customer': 'Ongeraho umukiriya',
+  'Select customer': 'Hitamo umukiriya',
+  'No phone number': 'Nta nimero ya telefoni',
+  'Sale Items': 'Ibicuruzwa byagurishijwe',
+  'Search the product first, then choose its product type / kind.': 'Banza ushake igicuruzwa, hanyuma uhitemo ubwoko bwacyo.',
+  'Add Item': 'Ongeraho igicuruzwa',
+  'Sale Item': 'Igicuruzwa cyagurishijwe',
+  'Product → Type / Kind → Price': 'Igicuruzwa → Ubwoko → Igiciro',
+  'Remove': 'Kuraho',
+  'Product': 'Igicuruzwa',
+  'Search to display products': 'Shakisha kugira ngo ibicuruzwa bigaragare',
+  'Type a product name to search...': 'Andika izina ry’igicuruzwa ushaka...',
+  'Selected Product': 'Igicuruzwa cyatoranyijwe',
+  'Change': 'Hindura',
+  'No products match “': 'Nta bicuruzwa bihuye na “',
+  'Product Type / Kind': 'Ubwoko bw’igicuruzwa',
+  'Search to display types': 'Shakisha kugira ngo ubwoko bugaragare',
+  'Type a product type / kind to search...': 'Andika ubwoko bw’igicuruzwa ushaka...',
+  'Select a product first...': 'Banza uhitemo igicuruzwa...',
+  'Selected Type / Kind': 'Ubwoko bwatoranyijwe',
+  'Current stock:': 'Ibiri mu bubiko ubu:',
+  'Stock:': 'Ibiri mu bubiko:',
+  'No product types match “': 'Nta bwoko buhuye na “',
+  'Quantity': 'Ingano',
+  'Selling Price / Item': 'Igiciro cyo kugurisha / kimwe',
+  'Item Revenue': 'Amafaranga y’igicuruzwa',
+  'Initial Payment': 'Ubwishyu bwa mbere',
+  'Pay the full sale now or record a partial payment.': 'Ishyura igurisha ryose ubu cyangwa wandike ubwishyu bw’igice.',
+  'Notes': 'Ibisobanuro',
+  '(optional)': '(si ngombwa)',
+  'Optional sale notes...': 'Ibisobanuro ku igurisha (si ngombwa)...',
+  'Sale Summary': 'Incamake y’igurisha',
+  'Review before saving.': 'Suzuma mbere yo kubika.',
+  'Payment Status': 'Imiterere y’ubwishyu',
+  'Cancel': 'Hagarika',
+  'Creating Sale...': 'Turimo kwandika igurisha...',
+  'Create a customer without leaving the sales screen.': 'Ongeraho umukiriya utavuye kuri paji y’ibyagurishijwe.',
+  'Customer Name': 'Izina ry’umukiriya',
+  'Enter customer name': 'Andika izina ry’umukiriya',
+  'Phone': 'Telefoni',
+  'Optional phone number': 'Nimero ya telefoni (si ngombwa)',
+  'Address': 'Aderesi',
+  'Optional address': 'Aderesi (si ngombwa)',
+  'Optional customer notes': 'Ibisobanuro ku mukiriya (si ngombwa)',
+  'Saving...': 'Turabika...',
+  'Create Customer': 'Andika umukiriya',
+  'Sale Details': 'Ibisobanuro by’igurisha',
+  'Paid:': 'Yishyuwe:',
+  '• Due:': '• Umwenda usigaye:',
+  '+ Add Payment': '+ Ongeraho ubwishyu',
+  'Add Payment': 'Ongeraho ubwishyu',
+  'Sold Items': 'Ibicuruzwa byagurishijwe',
+  'Actual FIFO cost and batch allocation.': 'Igiciro nyakuri cya FIFO n’uko ibyiciro by’ibicuruzwa byakoreshejwe.',
+  'Selling Price': 'Igiciro cyo kugurisha',
+  'Actual FIFO Cost': 'Igiciro nyakuri cya FIFO',
+  'Batch Allocations': 'Ibyiciro by’ibicuruzwa byakoreshejwe',
+  'Batch:': 'Icyiciro:',
+  'No allocation found.': 'Nta cyiciro cyabonetse.',
+  'Totals': 'Igiteranyo',
+  'Payment History': 'Amateka y’ubwishyu',
+  'Every payment received for this sale.': 'Ubwishyu bwose bwakiriwe kuri iri gurisha.',
+  'No separate payment records found.': 'Nta bwishyu bwihariye bwabonetse.',
+  'Payment Date': 'Itariki y’ubwishyu',
+  'Amount': 'Amafaranga',
+  'Payment ID': 'Nimero y’ubwishyu',
+  'Final Payment': 'Ubwishyu bwa nyuma',
+  'Installment Payment': 'Ubwishyu bw’igice',
+  'Edit': 'Hindura',
+  'Sale Notes': 'Ibisobanuro ku igurisha',
+  'Record Payment': 'Andika ubwishyu',
+  'Outstanding Balance': 'Umwenda usigaye',
+  'Current payment position': 'Uko ubwishyu bumeze ubu',
+  'Sale Total': 'Igiteranyo cy’igurisha',
+  'Already Paid': 'Hamaze kwishyurwa',
+  'Remaining Due': 'Umwenda usigaye',
+  'Payment Amount': 'Amafaranga yishyuwe',
+  'Max': 'Ntarenze',
+  'Enter amount': 'Andika amafaranga',
+  'Pay Full Due': 'Ishyura umwenda wose',
+  'New remaining due:': 'Umwenda uzasigara:',
+  'Optional payment note...': 'Ibisobanuro ku bwishyu (si ngombwa)...',
+  'Recording...': 'Turandika...',
+  'Edit Payment': 'Hindura ubwishyu',
+  'Correct the amount, date or notes for an existing payment.': 'Kosora amafaranga, itariki cyangwa ibisobanuro by’ubwishyu busanzwe.',
+  'Payment Record': 'Inyandiko y’ubwishyu',
+  'Initial': 'Bwa mbere',
+  'Final': 'Bwa nyuma',
+  'Installment': 'Igice',
+  'Important correction': 'Ikosora ry’ingenzi',
+  "Use this only when the payment was entered incorrectly. The sale's paid amount, remaining debt and payment status will be recalculated.": 'Koresha ibi gusa igihe ubwishyu bwanditswe nabi. Amafaranga yishyuwe ku igurisha, umwenda usigaye n’imiterere y’ubwishyu bizongera kubarwa.',
+  'Amount Correction': 'Ikosora ry’amafaranga',
+  'Current': 'Ayari asanzwe',
+  'Corrected': 'Yakosowe',
+  'Corrected Payment Amount': 'Amafaranga y’ubwishyu yakosowe',
+  'Payment Notes': 'Ibisobanuro ku bwishyu',
+  'Payment note...': 'Ibisobanuro ku bwishyu...',
+  'Saving Correction...': 'Turabika ibyakosowe...',
+  'Save Correction': 'Bika ibyakosowe',
+}
+
+function translateSalesText(value: string, isKinyarwanda: boolean) {
+  if (!isKinyarwanda) return value
+
+  const trimmed = value.trim()
+
+  // Keep dynamic parts (amounts, ids, names) while translating the text around them.
+  const prefixes: Array<[string, string]> = [
+    [
+      'Payment cannot exceed the remaining due of ',
+      'Amafaranga yishyurwa ntashobora kurenga umwenda usigaye wa ',
+    ],
+    [
+      'Sale created successfully. Sale ID: ',
+      'Igurisha ryanditswe neza. Nimero y’igurisha: ',
+    ],
+    [
+      'Payment corrected successfully to ',
+      'Ubwishyu bwakosowe neza, ubu ni ',
+    ],
+    ['Record a payment for sale #', 'Andika ubwishyu bw’igurisha #'],
+    ['Increase of ', 'Ubwiyongere bwa '],
+    ['Decrease of ', 'Igabanuka rya '],
+    ['Sale #', 'Igurisha #'],
+  ]
+
+  for (const [english, kinyarwanda] of prefixes) {
+    if (trimmed.startsWith(english)) {
+      return kinyarwanda + trimmed.slice(english.length)
+    }
+  }
+
+  const paymentOfPrefix = 'Payment of '
+  const recordedSuffix = ' recorded successfully.'
+
+  if (
+    trimmed.startsWith(paymentOfPrefix) &&
+    trimmed.endsWith(recordedSuffix)
+  ) {
+    const amount = trimmed.slice(
+      paymentOfPrefix.length,
+      trimmed.length - recordedSuffix.length,
+    )
+
+    return `Ubwishyu bwa ${amount} bwanditswe neza.`
+  }
+
+  if (Object.prototype.hasOwnProperty.call(SALES_TRANSLATIONS, trimmed)) {
+    return SALES_TRANSLATIONS[trimmed]
+  }
+
+  return value
+}
+
+function translateSalesNode(
+  node: ReactNode,
+  isKinyarwanda: boolean,
+): ReactNode {
+  if (!isKinyarwanda) return node
+
+  if (typeof node === 'string') {
+    const leading = node.match(/^\s*/)?.[0] ?? ''
+    const trailing = node.match(/\s*$/)?.[0] ?? ''
+    const content = node.slice(
+      leading.length,
+      node.length - trailing.length,
+    )
+
+    if (!content) return node
+
+    return `${leading}${translateSalesText(content, true)}${trailing}`
+  }
+
+  if (Array.isArray(node)) {
+    // Children.map keeps each element's own key and does not add wrapper
+    // elements, so tables, flex rows and lists keep their exact structure.
+    return Children.map(node, (item) => translateSalesNode(item, true))
+  }
+
+  if (isValidElement(node)) {
+    const props = node.props as Record<string, unknown>
+    const nextProps: Record<string, unknown> = { ...props }
+
+    const textProps = [
+      'title',
+      'description',
+      'label',
+      'subtitle',
+      'placeholder',
+      'text',
+      'hint',
+      'aria-label',
+    ]
+
+    for (const key of textProps) {
+      const value = nextProps[key]
+
+      if (typeof value === 'string') {
+        nextProps[key] = translateSalesText(value, true)
+      }
+    }
+
+    if (props.children !== undefined) {
+      nextProps.children = translateSalesNode(
+        props.children as ReactNode,
+        true,
+      )
+    }
+
+    if (props.footer !== undefined) {
+      nextProps.footer = translateSalesNode(
+        props.footer as ReactNode,
+        true,
+      )
+    }
+
+    return cloneElement(
+      node as ReactElement<Record<string, unknown>>,
+      nextProps,
+    )
+  }
+
+  return node
+}
+
+function SalesTranslation({ children }: { children: ReactNode }) {
+  const { t } = useAppPreferences()
+
+  const isKinyarwanda =
+    t('inventory').trim().toLowerCase() !== 'inventory'
+
+  return <>{translateSalesNode(children, isKinyarwanda)}</>
 }
 
 export default function SalesPage() {
@@ -984,6 +1282,7 @@ export default function SalesPage() {
   }
 
   return (
+    <SalesTranslation>
     <main className="min-h-screen bg-slate-50 px-3 py-4 text-slate-900 dark:bg-slate-950 dark:text-white sm:px-5 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Hero */}
@@ -3378,6 +3677,7 @@ export default function SalesPage() {
         )}
       </Modal>
     </main>
+    </SalesTranslation>
   )
 }
 
@@ -3457,7 +3757,7 @@ function SummaryCard({
   )
 }
 
-function PaymentStatusBadge({
+function renderPaymentStatusBadge({
   status,
 }: {
   status: string
@@ -3497,7 +3797,7 @@ function PaymentStatusBadge({
   )
 }
 
-function InfoCard({
+function renderInfoCard({
   label,
   value,
   icon,
@@ -3610,7 +3910,7 @@ function FormInput({
   )
 }
 
-function FormTextarea({
+function renderFormTextarea({
   label,
   value,
   onChange,
@@ -3646,6 +3946,36 @@ function FormTextarea({
 function Spinner() {
   return (
     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+  )
+}
+
+function PaymentStatusBadge(
+  props: Parameters<typeof renderPaymentStatusBadge>[0],
+) {
+  return (
+    <SalesTranslation>
+      {renderPaymentStatusBadge(props)}
+    </SalesTranslation>
+  )
+}
+
+function InfoCard(
+  props: Parameters<typeof renderInfoCard>[0],
+) {
+  return (
+    <SalesTranslation>
+      {renderInfoCard(props)}
+    </SalesTranslation>
+  )
+}
+
+function FormTextarea(
+  props: Parameters<typeof renderFormTextarea>[0],
+) {
+  return (
+    <SalesTranslation>
+      {renderFormTextarea(props)}
+    </SalesTranslation>
   )
 }
 
